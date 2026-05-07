@@ -56,6 +56,8 @@ const JSON_COLUMNS = new Set<string>([
   'raw_payload',
 ]);
 
+const DATETIME_COLUMNS = new Set<string>(['last_webhook_at', 'last_seen_at']);
+
 type ProductColumn = (typeof PRODUCT_COLUMNS)[number];
 
 @Injectable()
@@ -248,7 +250,39 @@ export class SQLMeliProductsRepository implements ISQLMeliProductsRepository {
       return JSON.stringify(value);
     }
 
+    if (DATETIME_COLUMNS.has(column)) {
+      return this.normalizeDateTimeValue(value);
+    }
+
     return value;
+  }
+
+  private normalizeDateTimeValue(value: unknown): unknown {
+    if (value === null) {
+      return null;
+    }
+
+    if (value instanceof Date) {
+      return this.toMySqlDateTime(value);
+    }
+
+    if (typeof value === 'string') {
+      if (value.trim() === '') {
+        return null;
+      }
+
+      const date = new Date(value);
+
+      if (!Number.isNaN(date.getTime())) {
+        return this.toMySqlDateTime(date);
+      }
+    }
+
+    return value;
+  }
+
+  private toMySqlDateTime(date: Date): string {
+    return date.toISOString().slice(0, 19).replace('T', ' ');
   }
 
   private getOffset(pagination: PaginationOptions): number {
