@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import type { ISQLMeliProductsRepository } from 'src/core/adapters/mercadolibre/products/ISQLMeliProductsRepository';
 import { MeliProductRow } from 'src/core/entitis/mercadolibre/products/MeliProductRow';
@@ -62,6 +66,7 @@ type ProductColumn = (typeof PRODUCT_COLUMNS)[number];
 
 @Injectable()
 export class SQLMeliProductsRepository implements ISQLMeliProductsRepository {
+  private readonly logger = new Logger(SQLMeliProductsRepository.name);
   private readonly productColumns = new Set<string>(PRODUCT_COLUMNS);
 
   constructor(
@@ -71,8 +76,20 @@ export class SQLMeliProductsRepository implements ISQLMeliProductsRepository {
 
   async bulkUpsertProducts(products: MeliProductDTO[]): Promise<number> {
     await this.entityManager.transaction(async (manager) => {
-      for (const product of products) {
-        await this.upsertProduct(manager, product);
+      for (const [index, product] of products.entries()) {
+        try {
+          await this.upsertProduct(manager, product);
+        } catch (error) {
+          const details = this.getDatabaseErrorDetails(error);
+
+          this.logger.error(
+            `[MELI-PRODUCTS] Bulk upsert item failed | index=${index} meli_item_id=${product.meli_item_id ?? 'null'} sku=${product.sku ?? 'null'} code=${details.code ?? 'unknown'} message=${details.message}`,
+          );
+
+          throw new InternalServerErrorException(
+            `[SQLMeliProductsRepository] Bulk upsert failed at products[${index}] meli_item_id=${product.meli_item_id ?? 'null'} sku=${product.sku ?? 'null'} | ${details.message}`,
+          );
+        }
       }
     });
 
@@ -255,6 +272,27 @@ export class SQLMeliProductsRepository implements ISQLMeliProductsRepository {
     }
 
     return value;
+  }
+
+  private getDatabaseErrorDetails(error: unknown): {
+    code?: string;
+    message: string;
+  } {
+    if (error instanceof Error) {
+      const maybeSqlError = error as Error & {
+        code?: string;
+        sqlMessage?: string;
+      };
+
+      return {
+        code: maybeSqlError.code,
+        message: maybeSqlError.sqlMessage ?? maybeSqlError.message,
+      };
+    }
+
+    return {
+      message: String(error),
+    };
   }
 
   private normalizeDateTimeValue(value: unknown): unknown {
