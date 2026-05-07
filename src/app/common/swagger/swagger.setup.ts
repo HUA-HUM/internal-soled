@@ -1,7 +1,12 @@
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { INestApplication } from '@nestjs/common';
 
-export function setupSwagger(app: INestApplication, title: string, description: string, tags: string[]) {
+export function setupSwagger(
+  app: INestApplication,
+  title: string,
+  description: string,
+  tags: string[],
+) {
   const builder = new DocumentBuilder()
     .setTitle(title)
     .setDescription(description)
@@ -17,9 +22,9 @@ export function setupSwagger(app: INestApplication, title: string, description: 
         type: 'apiKey',
         name: 'x-internal-api-key',
         in: 'header',
-        description: 'Internal API Key required for internal endpoints'
+        description: 'Internal API Key required for internal endpoints',
       },
-      'internal-api-key'
+      'internal-api-key',
     );
 
   /**
@@ -27,7 +32,7 @@ export function setupSwagger(app: INestApplication, title: string, description: 
    * Tags
    * ============================
    */
-  tags.forEach(tag => builder.addTag(tag));
+  tags.forEach((tag) => builder.addTag(tag));
 
   const document = SwaggerModule.createDocument(app, builder.build());
 

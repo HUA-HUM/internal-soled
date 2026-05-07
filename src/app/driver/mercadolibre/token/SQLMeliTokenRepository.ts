@@ -15,12 +15,13 @@ export class SQLMeliTokenRepository implements ISQLMeliTokenRepository {
    * Devuelve el último token guardado (single-token storage)
    */
   async getToken(): Promise<MeliTokenRow | null> {
-    const result = await this.entityManager.query(`
+    const queryResult: unknown = await this.entityManager.query(`
       SELECT *
       FROM mercadolibre_tokens
       ORDER BY id DESC
       LIMIT 1
     `);
+    const result = queryResult as MeliTokenRow[];
 
     return result.length ? result[0] : null;
   }

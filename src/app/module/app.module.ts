@@ -2,6 +2,7 @@ import { ConfigModule } from '@nestjs/config';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TokenModule } from './mercadolibre/tokens/Token.Module';
+import { ProductsModule } from './mercadolibre/products/Products.Module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TokenModule } from './mercadolibre/tokens/Token.Module';
     }),
 
     TokenModule,
+    ProductsModule,
   ],
 })
 export class AppModule {}

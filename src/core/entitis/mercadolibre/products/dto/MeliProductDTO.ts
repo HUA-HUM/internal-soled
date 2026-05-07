@@ -1,0 +1,56 @@
+export type MeliProductDTO = {
+  meli_item_id: string;
+  seller_id?: string | null;
+  sku?: string | null;
+  title?: string | null;
+  description?: string | null;
+  condition_type?: string | null;
+  status?: string | null;
+  permalink?: string | null;
+  price?: number | null;
+  base_price?: number | null;
+  original_price?: number | null;
+  available_quantity?: number | null;
+  sold_quantity?: number | null;
+  listing_type_id?: string | null;
+  buying_mode?: string | null;
+  catalog_listing?: boolean | number | null;
+  category_id?: string | null;
+  category_name?: string | null;
+  category_path?: unknown;
+  domain_id?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  gtin?: string | null;
+  attributes?: unknown;
+  thumbnail?: string | null;
+  pictures?: unknown;
+  video_id?: string | null;
+  logistic_type?: string | null;
+  shipping_mode?: string | null;
+  free_shipping?: boolean | number | null;
+  local_pick_up?: boolean | number | null;
+  has_variations?: boolean | number | null;
+  variations?: unknown;
+  raw_payload?: unknown;
+  last_webhook_at?: Date | string | null;
+  last_seen_at?: Date | string | null;
+};
+
+export type ProductFieldUpdateDTO = {
+  field: string;
+  value: unknown;
+};
+
+export type PaginationOptions = {
+  page: number;
+  limit: number;
+};
+
+export type PaginatedResult<T> = {
+  data: T[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
