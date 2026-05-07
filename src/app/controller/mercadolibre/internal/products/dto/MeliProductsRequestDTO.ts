@@ -1,4 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ArrayNotEmpty,
+  IsArray,
+  IsInt,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import type { MeliProductDTO } from 'src/core/entitis/mercadolibre/products/dto/MeliProductDTO';
 
 export class BulkMeliProductsDTO {
@@ -18,6 +28,9 @@ export class BulkMeliProductsDTO {
       },
     ],
   })
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsObject({ each: true })
   products: MeliProductDTO[];
 }
 
@@ -26,12 +39,15 @@ export class UpdateMeliProductFieldDTO {
     description: 'Campo de mercadolibre_products a modificar',
     example: 'price',
   })
+  @IsString()
+  @IsNotEmpty()
   field: string;
 
   @ApiPropertyOptional({
     description: 'Nuevo valor del campo',
     example: 95000,
   })
+  @IsOptional()
   value: unknown;
 }
 
@@ -41,5 +57,7 @@ export class SaveMeliProductDeltaCursorDTO {
       'Último id de mercadolibre_products_delta impactado correctamente',
     example: 1500,
   })
+  @IsInt()
+  @Min(0)
   last_delta_id: number;
 }
