@@ -3,6 +3,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TokenModule } from './mercadolibre/tokens/Token.Module';
 import { ProductsModule } from './mercadolibre/products/Products.Module';
+import { PublisherModule } from './publisher/Publisher.Module';
+import { MarketplacePublicationsModule } from './marketplace-publications/MarketplacePublications.Module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { ProductsModule } from './mercadolibre/products/Products.Module';
 
     TokenModule,
     ProductsModule,
+    PublisherModule,
+    MarketplacePublicationsModule,
   ],
 })
 export class AppModule {}

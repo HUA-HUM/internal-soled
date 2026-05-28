@@ -100,6 +100,15 @@ export class ProductsController {
     );
   }
 
+  @Get('by-sku/:sku')
+  @ApiOperation({
+    summary: 'Busca un producto por SKU',
+  })
+  @ApiParam({ name: 'sku', example: 'RMS-2M-NEG' })
+  findProductBySku(@Param('sku') sku: string): Promise<MeliProductRow> {
+    return this.productsService.findProductBySku(sku);
+  }
+
   @Get(':identifier')
   @ApiOperation({
     summary: 'Busca un producto por MLA o SKU',

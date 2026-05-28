@@ -126,6 +126,20 @@ export class MeliProductsService {
     return product;
   }
 
+  async findProductBySku(sku: string): Promise<MeliProductRow> {
+    if (!sku || sku.trim() === '') {
+      throw new BadRequestException('sku is required');
+    }
+
+    const product = await this.productsRepository.findProductBySku(sku.trim());
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return product;
+  }
+
   getSkus(pagination: PaginationOptions): Promise<PaginatedResult<string>> {
     return this.productsRepository.getSkus(pagination);
   }

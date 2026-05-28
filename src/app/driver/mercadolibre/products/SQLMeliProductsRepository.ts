@@ -164,6 +164,22 @@ export class SQLMeliProductsRepository implements ISQLMeliProductsRepository {
     return rows.length ? rows[0] : null;
   }
 
+  async findProductBySku(sku: string): Promise<MeliProductRow | null> {
+    const queryResult: unknown = await this.entityManager.query(
+      `
+      SELECT *
+      FROM mercadolibre_products
+      WHERE sku = ?
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 1
+      `,
+      [sku],
+    );
+    const rows = queryResult as MeliProductRow[];
+
+    return rows.length ? rows[0] : null;
+  }
+
   async getSkus(
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<string>> {
