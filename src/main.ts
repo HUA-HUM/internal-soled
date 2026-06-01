@@ -18,8 +18,8 @@ async function bootstrap() {
 
   setupSwagger(app, 'Soled API', 'API principal de Soled DB', ['']);
 
-  await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
+  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 
-  console.log(`API running on port ${process.env.PORT ?? 3001}`);
+  console.log(`API running on port ${process.env.PORT ?? 3000}`);
 }
 void bootstrap();
