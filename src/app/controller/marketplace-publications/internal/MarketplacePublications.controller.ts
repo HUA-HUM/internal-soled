@@ -21,8 +21,12 @@ import { MarketplacePublicationsService } from 'src/app/services/marketplace-pub
 import {
   MarketplacePublicationListResult,
   MarketplacePublicationRow,
+  MarketplacePublicationSkuStatusResult,
+  MissingMarketplacePublicationsResult,
 } from 'src/core/entitis/marketplace-publications/MarketplacePublicationTypes';
 import {
+  MarketplacePublicationSkuStatusQueryDTO,
+  MissingMarketplacePublicationsQueryDTO,
   UpdateMarketplacePublicationPriceDTO,
   UpdateMarketplacePublicationStatusDTO,
   UpdateMarketplacePublicationStockDTO,
@@ -45,6 +49,51 @@ export class MarketplacePublicationsController {
     @Query('sku') sku?: string,
   ): Promise<MarketplacePublicationListResult> {
     return this.publicationsService.listPublications({ sku });
+  }
+
+  @Get('missing/:marketplace')
+  @ApiOperation({
+    summary: 'Lista SKUs de Mercado Libre no publicados en un marketplace',
+    description:
+      'Cruza mercadolibre_products contra marketplace_product_publications por SKU.',
+  })
+  @ApiParam({ name: 'marketplace', example: 'oncity' })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  listMissingPublications(
+    @Param('marketplace') marketplace: string,
+    @Query() query: MissingMarketplacePublicationsQueryDTO,
+  ): Promise<MissingMarketplacePublicationsResult> {
+    return this.publicationsService.listMissingPublications({
+      marketplace,
+      limit: query.limit,
+      offset: query.offset,
+    });
+  }
+
+  @Get('status-by-sku')
+  @ApiOperation({
+    summary: 'Lista estado de publicación por SKU y marketplace',
+    description:
+      'Cruza mercadolibre_products contra marketplace_product_publications y devuelve flags booleanos por marketplace.',
+  })
+  @ApiQuery({ name: 'sku', required: false, example: 'RMS-2M-NEG' })
+  @ApiQuery({
+    name: 'marketplaces',
+    required: false,
+    example: 'oncity,fravega,megatone',
+  })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  listSkuPublicationStatus(
+    @Query() query: MarketplacePublicationSkuStatusQueryDTO,
+  ): Promise<MarketplacePublicationSkuStatusResult> {
+    return this.publicationsService.listSkuPublicationStatus({
+      sku: query.sku,
+      marketplaces: this.parseMarketplaces(query.marketplaces),
+      limit: query.limit,
+      offset: query.offset,
+    });
   }
 
   @Get(':marketplace/:sku')
@@ -110,5 +159,16 @@ export class MarketplacePublicationsController {
     @Body() body: UpdateMarketplacePublicationStockDTO,
   ): Promise<{ ok: true }> {
     return this.publicationsService.updateStock(marketplace, sku, body);
+  }
+
+  private parseMarketplaces(marketplaces?: string): string[] {
+    if (!marketplaces) {
+      return [];
+    }
+
+    return marketplaces
+      .split(',')
+      .map((marketplace) => marketplace.trim())
+      .filter(Boolean);
   }
 }

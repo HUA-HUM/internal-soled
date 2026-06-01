@@ -64,3 +64,46 @@ export type UpsertMarketplacePublicationInput =
 export type MarketplacePublicationListResult = {
   items: MarketplacePublicationRow[];
 };
+
+export type MissingMarketplacePublicationRow = {
+  sku: string;
+  meli_item_id: string;
+  title: string | null;
+  status: string | null;
+  price: number | null;
+  available_quantity: number | null;
+  marketplace: string;
+  marketplace_publication_id: number | null;
+  publication_status: MarketplacePublicationStatus | null;
+  sync_status: MarketplacePublicationSyncStatus | null;
+  reason: 'not_found' | 'not_published';
+};
+
+export type MissingMarketplacePublicationsResult = {
+  items: MissingMarketplacePublicationRow[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+  };
+};
+
+export type MarketplacePublicationSkuStatusRow = {
+  sku: string;
+  meli_item_id: string;
+  title: string | null;
+  status: string | null;
+  price: number | null;
+  available_quantity: number | null;
+  thumbnail: string | null;
+} & Record<string, string | number | boolean | null>;
+
+export type MarketplacePublicationSkuStatusResult = {
+  items: MarketplacePublicationSkuStatusRow[];
+  marketplaces: string[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+  };
+};

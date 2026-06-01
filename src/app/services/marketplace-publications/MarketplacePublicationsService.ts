@@ -3,6 +3,8 @@ import type { ISQLMarketplacePublicationsRepository } from 'src/core/adapters/ma
 import {
   MarketplacePublicationListResult,
   MarketplacePublicationRow,
+  MarketplacePublicationSkuStatusResult,
+  MissingMarketplacePublicationsResult,
 } from 'src/core/entitis/marketplace-publications/MarketplacePublicationTypes';
 import {
   UpdateMarketplacePublicationPriceDTO,
@@ -38,6 +40,32 @@ export class MarketplacePublicationsService {
     sku?: string;
   }): Promise<MarketplacePublicationListResult> {
     return this.publicationsRepository.listPublications(params);
+  }
+
+  listMissingPublications(params: {
+    marketplace: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<MissingMarketplacePublicationsResult> {
+    return this.publicationsRepository.listMissingPublications({
+      marketplace: params.marketplace,
+      limit: params.limit ?? 50,
+      offset: params.offset ?? 0,
+    });
+  }
+
+  listSkuPublicationStatus(params: {
+    sku?: string;
+    marketplaces?: string[];
+    limit?: number;
+    offset?: number;
+  }): Promise<MarketplacePublicationSkuStatusResult> {
+    return this.publicationsRepository.listSkuPublicationStatus({
+      sku: params.sku,
+      marketplaces: params.marketplaces ?? [],
+      limit: params.limit ?? 50,
+      offset: params.offset ?? 0,
+    });
   }
 
   async upsertPublication(

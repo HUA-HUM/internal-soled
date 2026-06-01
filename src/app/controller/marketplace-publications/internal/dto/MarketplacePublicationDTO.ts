@@ -163,6 +163,52 @@ export class UpsertMarketplacePublicationDTO {
   lastRunId?: string;
 }
 
+export class MissingMarketplacePublicationsQueryDTO {
+  @ApiPropertyOptional({ example: 50 })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  limit?: number;
+
+  @ApiPropertyOptional({ example: 0 })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  offset?: number;
+}
+
+export class MarketplacePublicationSkuStatusQueryDTO {
+  @ApiPropertyOptional({ example: 'RMS-2M-NEG' })
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @ApiPropertyOptional({
+    example: 'oncity,fravega,megatone',
+    description:
+      'Lista separada por coma. Si se omite, usa marketplaces base y existentes.',
+  })
+  @IsOptional()
+  @IsString()
+  marketplaces?: string;
+
+  @ApiPropertyOptional({ example: 50 })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  limit?: number;
+
+  @ApiPropertyOptional({ example: 0 })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  offset?: number;
+}
+
 export class UpdateMarketplacePublicationStatusDTO {
   @ApiPropertyOptional({ example: 'error' })
   @IsOptional()

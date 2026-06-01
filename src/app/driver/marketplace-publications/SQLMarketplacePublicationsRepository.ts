@@ -4,6 +4,8 @@ import type { ISQLMarketplacePublicationsRepository } from 'src/core/adapters/ma
 import {
   MarketplacePublicationListResult,
   MarketplacePublicationRow,
+  MarketplacePublicationSkuStatusResult,
+  MissingMarketplacePublicationsResult,
   UpsertMarketplacePublicationInput,
 } from 'src/core/entitis/marketplace-publications/MarketplacePublicationTypes';
 import { EntityManager } from 'typeorm';
@@ -61,6 +63,8 @@ const DATETIME_COLUMNS = new Set<string>([
   'last_error_at',
 ]);
 
+const DEFAULT_MARKETPLACES = ['oncity', 'fravega', 'megatone'];
+
 type PublicationColumn = (typeof PUBLICATION_COLUMNS)[number];
 
 @Injectable()
@@ -106,6 +110,184 @@ export class SQLMarketplacePublicationsRepository implements ISQLMarketplacePubl
 
     return {
       items: queryResult as MarketplacePublicationRow[],
+    };
+  }
+
+  async listMissingPublications(params: {
+    marketplace: string;
+    limit: number;
+    offset: number;
+  }): Promise<MissingMarketplacePublicationsResult> {
+    const queryResult: unknown = await this.entityManager.query(
+      `
+      SELECT
+        mp.sku,
+        mp.meli_item_id,
+        mp.title,
+        mp.status,
+        mp.price,
+        mp.available_quantity,
+        ? AS marketplace,
+        pub.id AS marketplace_publication_id,
+        pub.publication_status,
+        pub.sync_status,
+        CASE
+          WHEN pub.id IS NULL THEN 'not_found'
+          ELSE 'not_published'
+        END AS reason
+      FROM mercadolibre_products mp
+      LEFT JOIN marketplace_product_publications pub
+        ON pub.sku = mp.sku
+       AND pub.marketplace = ?
+      WHERE mp.sku IS NOT NULL
+        AND mp.sku <> ''
+        AND (pub.id IS NULL OR pub.publication_status <> 'published')
+      ORDER BY mp.updated_at DESC, mp.id DESC
+      LIMIT ? OFFSET ?
+      `,
+      [params.marketplace, params.marketplace, params.limit, params.offset],
+    );
+
+    const countResult: unknown = await this.entityManager.query(
+      `
+      SELECT COUNT(*) AS total
+      FROM mercadolibre_products mp
+      LEFT JOIN marketplace_product_publications pub
+        ON pub.sku = mp.sku
+       AND pub.marketplace = ?
+      WHERE mp.sku IS NOT NULL
+        AND mp.sku <> ''
+        AND (pub.id IS NULL OR pub.publication_status <> 'published')
+      `,
+      [params.marketplace],
+    );
+    const countRows = countResult as { total: string | number }[];
+
+    return {
+      items: queryResult as MissingMarketplacePublicationsResult['items'],
+      pagination: {
+        limit: params.limit,
+        offset: params.offset,
+        total: Number(countRows[0]?.total ?? 0),
+      },
+    };
+  }
+
+  async listSkuPublicationStatus(params: {
+    sku?: string;
+    marketplaces: string[];
+    limit: number;
+    offset: number;
+  }): Promise<MarketplacePublicationSkuStatusResult> {
+    const marketplaces = params.marketplaces.length
+      ? params.marketplaces
+      : await this.getKnownMarketplaces();
+    const skuFilter = params.sku?.trim();
+    const whereSql = skuFilter
+      ? "WHERE sku IS NOT NULL AND sku <> '' AND listing_type_id = 'gold_special' AND sku = ?"
+      : "WHERE sku IS NOT NULL AND sku <> '' AND listing_type_id = 'gold_special'";
+    const whereParams = skuFilter ? [skuFilter] : [];
+
+    const productsResult: unknown = await this.entityManager.query(
+      `
+      SELECT
+        mp.sku,
+        mp.meli_item_id,
+        mp.title,
+        mp.status,
+        mp.price,
+        mp.available_quantity,
+        mp.thumbnail
+      FROM mercadolibre_products mp
+      INNER JOIN (
+        SELECT MAX(id) AS id
+        FROM mercadolibre_products
+        ${whereSql}
+        GROUP BY sku
+      ) latest ON latest.id = mp.id
+      ORDER BY mp.updated_at DESC, mp.id DESC
+      LIMIT ? OFFSET ?
+      `,
+      [...whereParams, params.limit, params.offset],
+    );
+    const products = productsResult as {
+      sku: string;
+      meli_item_id: string;
+      title: string | null;
+      status: string | null;
+      price: number | null;
+      available_quantity: number | null;
+      thumbnail: string | null;
+    }[];
+
+    const countResult: unknown = await this.entityManager.query(
+      `
+      SELECT COUNT(DISTINCT sku) AS total
+      FROM mercadolibre_products
+      ${whereSql}
+      `,
+      whereParams,
+    );
+    const countRows = countResult as { total: string | number }[];
+
+    if (!products.length) {
+      return {
+        items: [],
+        marketplaces,
+        pagination: {
+          limit: params.limit,
+          offset: params.offset,
+          total: Number(countRows[0]?.total ?? 0),
+        },
+      };
+    }
+
+    const productSkus = products.map((product) => product.sku);
+    const skuPlaceholders = productSkus.map(() => '?').join(', ');
+    const marketplacePlaceholders = marketplaces.map(() => '?').join(', ');
+    const publicationsResult: unknown = await this.entityManager.query(
+      `
+      SELECT sku, marketplace, publication_status
+      FROM marketplace_product_publications
+      WHERE sku IN (${skuPlaceholders})
+        AND marketplace IN (${marketplacePlaceholders})
+      `,
+      [...productSkus, ...marketplaces],
+    );
+    const publications = publicationsResult as {
+      sku: string;
+      marketplace: string;
+      publication_status: string;
+    }[];
+    const statusBySkuMarketplace = new Map<string, boolean>();
+
+    for (const publication of publications) {
+      statusBySkuMarketplace.set(
+        `${publication.sku}|${publication.marketplace}`,
+        publication.publication_status === 'published',
+      );
+    }
+
+    return {
+      items: products.map((product) => {
+        const row: MarketplacePublicationSkuStatusResult['items'][number] = {
+          ...product,
+        };
+
+        for (const marketplace of marketplaces) {
+          row[marketplace] =
+            statusBySkuMarketplace.get(`${product.sku}|${marketplace}`) ??
+            false;
+        }
+
+        return row;
+      }),
+      marketplaces,
+      pagination: {
+        limit: params.limit,
+        offset: params.offset,
+        total: Number(countRows[0]?.total ?? 0),
+      },
     };
   }
 
@@ -319,5 +501,22 @@ export class SQLMarketplacePublicationsRepository implements ISQLMarketplacePubl
 
   private toMySqlDateTime(date: Date): string {
     return date.toISOString().slice(0, 19).replace('T', ' ');
+  }
+
+  private async getKnownMarketplaces(): Promise<string[]> {
+    const queryResult: unknown = await this.entityManager.query(`
+      SELECT DISTINCT marketplace
+      FROM marketplace_product_publications
+      WHERE marketplace IS NOT NULL AND marketplace <> ''
+      ORDER BY marketplace ASC
+    `);
+    const rows = queryResult as { marketplace: string }[];
+    const marketplaces = new Set(DEFAULT_MARKETPLACES);
+
+    for (const row of rows) {
+      marketplaces.add(row.marketplace);
+    }
+
+    return Array.from(marketplaces);
   }
 }

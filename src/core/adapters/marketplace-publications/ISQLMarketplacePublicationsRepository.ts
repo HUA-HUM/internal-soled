@@ -1,8 +1,10 @@
 import {
   MarketplacePublicationListResult,
   MarketplacePublicationRow,
+  MarketplacePublicationSkuStatusResult,
   MarketplacePublicationStatus,
   MarketplacePublicationSyncStatus,
+  MissingMarketplacePublicationsResult,
   UpsertMarketplacePublicationInput,
 } from 'src/core/entitis/marketplace-publications/MarketplacePublicationTypes';
 
@@ -14,6 +16,17 @@ export interface ISQLMarketplacePublicationsRepository {
   listPublications(params: {
     sku?: string;
   }): Promise<MarketplacePublicationListResult>;
+  listMissingPublications(params: {
+    marketplace: string;
+    limit: number;
+    offset: number;
+  }): Promise<MissingMarketplacePublicationsResult>;
+  listSkuPublicationStatus(params: {
+    sku?: string;
+    marketplaces: string[];
+    limit: number;
+    offset: number;
+  }): Promise<MarketplacePublicationSkuStatusResult>;
   upsertPublication(
     input: UpsertMarketplacePublicationInput,
   ): Promise<MarketplacePublicationRow>;
