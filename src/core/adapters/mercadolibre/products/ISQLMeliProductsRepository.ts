@@ -18,6 +18,7 @@ export interface ISQLMeliProductsRepository {
   ): Promise<PaginatedResult<MeliProductRow>>;
   findProduct(identifier: string): Promise<MeliProductRow | null>;
   findProductBySku(sku: string): Promise<MeliProductRow | null>;
+  findProductByMla(meliItemId: string): Promise<MeliProductRow | null>;
   getSkus(pagination: PaginationOptions): Promise<PaginatedResult<string>>;
   getMlas(pagination: PaginationOptions): Promise<PaginatedResult<string>>;
 }

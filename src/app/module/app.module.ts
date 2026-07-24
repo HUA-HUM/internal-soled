@@ -5,6 +5,7 @@ import { TokenModule } from './mercadolibre/tokens/Token.Module';
 import { ProductsModule } from './mercadolibre/products/Products.Module';
 import { PublisherModule } from './publisher/Publisher.Module';
 import { MarketplacePublicationsModule } from './marketplace-publications/MarketplacePublications.Module';
+import { MarketplaceChangeActionsModule } from './marketplace-change-actions/MarketplaceChangeActions.Module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { MarketplacePublicationsModule } from './marketplace-publications/Market
     ProductsModule,
     PublisherModule,
     MarketplacePublicationsModule,
+    MarketplaceChangeActionsModule,
   ],
 })
 export class AppModule {}

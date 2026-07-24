@@ -140,6 +140,22 @@ export class MeliProductsService {
     return product;
   }
 
+  async findProductByMla(meliItemId: string): Promise<MeliProductRow> {
+    if (!meliItemId || meliItemId.trim() === '') {
+      throw new BadRequestException('meliItemId is required');
+    }
+
+    const product = await this.productsRepository.findProductByMla(
+      meliItemId.trim(),
+    );
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return product;
+  }
+
   getSkus(pagination: PaginationOptions): Promise<PaginatedResult<string>> {
     return this.productsRepository.getSkus(pagination);
   }

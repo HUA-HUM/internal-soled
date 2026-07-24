@@ -109,6 +109,19 @@ export class ProductsController {
     return this.productsService.findProductBySku(sku);
   }
 
+  @Get('by-mla/:meliItemId')
+  @ApiOperation({
+    summary: 'Busca un producto por MLA',
+    description:
+      'Endpoint explícito para webhooks de Mercado Libre que reciben meli_item_id.',
+  })
+  @ApiParam({ name: 'meliItemId', example: 'MLA123456789' })
+  findProductByMla(
+    @Param('meliItemId') meliItemId: string,
+  ): Promise<MeliProductRow> {
+    return this.productsService.findProductByMla(meliItemId);
+  }
+
   @Get(':identifier')
   @ApiOperation({
     summary: 'Busca un producto por MLA o SKU',
