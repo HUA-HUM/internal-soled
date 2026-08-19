@@ -21,6 +21,7 @@ import { InternalApiKeyGuard } from 'src/app/guards/internal-api-key.guard';
 import { MarketplaceChangeActionsService } from 'src/app/services/marketplace-change-actions/MarketplaceChangeActionsService';
 import {
   MarketplaceChangeActionBulkItem,
+  MarketplaceChangeActionAnalyticsResult,
   MarketplaceChangeActionDTO,
   MarketplaceChangeActionListResult,
 } from 'src/core/entitis/marketplace-change-actions/MarketplaceChangeActionTypes';
@@ -29,6 +30,7 @@ import {
   CompleteMarketplaceChangeActionDTO,
   FailMarketplaceChangeActionDTO,
   ListMarketplaceChangeActionsQueryDTO,
+  MarketplaceChangeActionAnalyticsQueryDTO,
   MarkMarketplaceChangeActionProcessingDTO,
   SkipMarketplaceChangeActionDTO,
   UpdateMarketplaceChangeActionBullmqJobDTO,
@@ -91,6 +93,26 @@ export class MarketplaceChangeActionsController {
     @Query() query: ListMarketplaceChangeActionsQueryDTO,
   ): Promise<MarketplaceChangeActionListResult> {
     return this.actionsService.list(query);
+  }
+
+  @Get('analytics')
+  @ApiOperation({
+    summary: 'Analítica diaria de acciones de cambios marketplace',
+    description:
+      'Devuelve totales, activaciones, cambios de precio/stock/estado, marcas, marketplaces, fuentes, horas, SKUs y errores. Usa la fecha de la base de datos cuando no se informa date.',
+  })
+  @ApiQuery({ name: 'date', required: false, example: '2026-08-19' })
+  @ApiQuery({ name: 'marketplace', required: false, example: 'fravega' })
+  @ApiQuery({ name: 'status', required: false, example: 'completed' })
+  @ApiQuery({
+    name: 'source',
+    required: false,
+    example: 'mercadolibre_webhook',
+  })
+  getAnalytics(
+    @Query() query: MarketplaceChangeActionAnalyticsQueryDTO,
+  ): Promise<MarketplaceChangeActionAnalyticsResult> {
+    return this.actionsService.getAnalytics(query);
   }
 
   @Get(':actionId')

@@ -16,6 +16,8 @@ import {
 import type { ISQLMarketplaceChangeActionsRepository } from 'src/core/adapters/marketplace-change-actions/ISQLMarketplaceChangeActionsRepository';
 import {
   MarketplaceChangeActionBulkItem,
+  MarketplaceChangeActionAnalyticsFilters,
+  MarketplaceChangeActionAnalyticsResult,
   MarketplaceChangeActionDTO,
   MarketplaceChangeActionListResult,
 } from 'src/core/entitis/marketplace-change-actions/MarketplaceChangeActionTypes';
@@ -77,6 +79,12 @@ export class MarketplaceChangeActionsService {
       limit: query.limit ?? 50,
       offset: query.offset ?? 0,
     });
+  }
+
+  getAnalytics(
+    query: MarketplaceChangeActionAnalyticsFilters,
+  ): Promise<MarketplaceChangeActionAnalyticsResult> {
+    return this.actionsRepository.getAnalytics(query);
   }
 
   async markProcessing(

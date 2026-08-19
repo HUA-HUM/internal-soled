@@ -109,3 +109,65 @@ export type MarketplaceChangeActionListResult = {
     total: number;
   };
 };
+
+export type MarketplaceChangeActionAnalyticsFilters = {
+  date?: string;
+  marketplace?: MarketplaceChangeActionMarketplace;
+  status?: MarketplaceChangeActionStatus;
+  source?: string;
+};
+
+export type MarketplaceChangeActionAnalyticsBreakdown = {
+  name: string;
+  total: number;
+  completed: number;
+  failed: number;
+};
+
+export type MarketplaceChangeActionAnalyticsResult = {
+  period: {
+    date: string;
+    start: string;
+    end: string;
+    timezone: 'database';
+  };
+  filters: Omit<MarketplaceChangeActionAnalyticsFilters, 'date'>;
+  summary: {
+    totalActions: number;
+    completedActions: number;
+    failedActions: number;
+    pendingActions: number;
+    successRate: number;
+    uniqueSkus: number;
+    uniqueMeliItems: number;
+    activations: number;
+    completedActivations: number;
+    priceChanges: number;
+    completedPriceChanges: number;
+    stockChanges: number;
+    completedStockChanges: number;
+    statusChanges: number;
+    completedStatusChanges: number;
+    averageProcessingTimeMs: number | null;
+  };
+  byChangeType: MarketplaceChangeActionAnalyticsBreakdown[];
+  byStatus: { name: string; total: number }[];
+  byMarketplace: MarketplaceChangeActionAnalyticsBreakdown[];
+  byBrand: MarketplaceChangeActionAnalyticsBreakdown[];
+  bySource: MarketplaceChangeActionAnalyticsBreakdown[];
+  byHour: { hour: number; total: number; completed: number; failed: number }[];
+  topSkus: {
+    sku: string;
+    total: number;
+    completed: number;
+    failed: number;
+    priceChanges: number;
+    stockChanges: number;
+    statusChanges: number;
+  }[];
+  topErrors: {
+    code: string;
+    message: string | null;
+    total: number;
+  }[];
+};

@@ -3,6 +3,8 @@ import {
   MarketplaceChangeActionBulkItem,
   MarketplaceChangeActionDTO,
   MarketplaceChangeActionFilters,
+  MarketplaceChangeActionAnalyticsFilters,
+  MarketplaceChangeActionAnalyticsResult,
   MarketplaceChangeActionListResult,
 } from 'src/core/entitis/marketplace-change-actions/MarketplaceChangeActionTypes';
 
@@ -16,6 +18,9 @@ export interface ISQLMarketplaceChangeActionsRepository {
     limit: number;
     offset: number;
   }): Promise<MarketplaceChangeActionListResult>;
+  getAnalytics(
+    filters: MarketplaceChangeActionAnalyticsFilters,
+  ): Promise<MarketplaceChangeActionAnalyticsResult>;
   markProcessing(
     actionId: string,
     input: {

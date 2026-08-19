@@ -3,10 +3,12 @@ import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
   IsArray,
+  IsDateString,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   ValidateNested,
@@ -147,6 +149,32 @@ export class ListMarketplaceChangeActionsQueryDTO {
   @IsInt()
   @Min(0)
   offset?: number;
+}
+
+export class MarketplaceChangeActionAnalyticsQueryDTO {
+  @ApiPropertyOptional({
+    example: '2026-08-19',
+    description: 'Fecha calendario de la base de datos. Por defecto, hoy.',
+  })
+  @IsOptional()
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  date?: string;
+
+  @ApiPropertyOptional({ example: 'fravega', enum: MARKETPLACES })
+  @IsOptional()
+  @IsIn(MARKETPLACES)
+  marketplace?: MarketplaceChangeActionMarketplace;
+
+  @ApiPropertyOptional({ example: 'completed', enum: STATUSES })
+  @IsOptional()
+  @IsIn(STATUSES)
+  status?: MarketplaceChangeActionStatus;
+
+  @ApiPropertyOptional({ example: 'mercadolibre_webhook' })
+  @IsOptional()
+  @IsString()
+  source?: string;
 }
 
 export class MarkMarketplaceChangeActionProcessingDTO {
