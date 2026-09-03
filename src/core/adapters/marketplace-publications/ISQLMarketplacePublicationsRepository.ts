@@ -3,6 +3,8 @@ import {
   MarketplacePublicationRow,
   MarketplacePublicationSkuStatusResult,
   MarketplacePublicationStatus,
+  MarketplaceSkuStatusFacetsResult,
+  MarketplaceSkuStatusFilters,
   MarketplacePublicationSyncStatus,
   MissingMarketplacePublicationsResult,
   UpsertMarketplacePublicationInput,
@@ -21,12 +23,10 @@ export interface ISQLMarketplacePublicationsRepository {
     limit: number;
     offset: number;
   }): Promise<MissingMarketplacePublicationsResult>;
-  listSkuPublicationStatus(params: {
-    sku?: string;
-    marketplaces: string[];
-    limit: number;
-    offset: number;
-  }): Promise<MarketplacePublicationSkuStatusResult>;
+  listSkuPublicationStatus(
+    params: MarketplaceSkuStatusFilters,
+  ): Promise<MarketplacePublicationSkuStatusResult>;
+  getSkuPublicationFacets(): Promise<MarketplaceSkuStatusFacetsResult>;
   upsertPublication(
     input: UpsertMarketplacePublicationInput,
   ): Promise<MarketplacePublicationRow>;

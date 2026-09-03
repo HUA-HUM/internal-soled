@@ -186,6 +186,14 @@ export class MarketplacePublicationSkuStatusQueryDTO {
   sku?: string;
 
   @ApiPropertyOptional({
+    example: 'plafon',
+    description: 'Busqueda parcial por SKU, titulo o MLA.',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
     example: 'oncity,fravega,megatone',
     description:
       'Lista separada por coma. Si se omite, usa marketplaces base y existentes.',
@@ -193,6 +201,107 @@ export class MarketplacePublicationSkuStatusQueryDTO {
   @IsOptional()
   @IsString()
   marketplaces?: string;
+
+  @ApiPropertyOptional({
+    example: 'in_stock',
+    description:
+      'in_stock | con_stock | disponible | true para disponibles; out_of_stock | sin_stock | no_disponible | false para sin stock. Se evalua sobre el stock maximo entre las publicaciones del SKU.',
+  })
+  @IsOptional()
+  @IsString()
+  stock?: string;
+
+  @ApiPropertyOptional({
+    example: 'true',
+    description:
+      'true = SKUs con al menos una publicacion activa en Mercado Libre; false = SKUs sin ninguna activa.',
+  })
+  @IsOptional()
+  @IsString()
+  active?: string;
+
+  @ApiPropertyOptional({
+    example: 'active,paused',
+    description:
+      'Estados crudos de Mercado Libre separados por coma: active, paused, closed, inactive, under_review.',
+  })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional({
+    example: 'oncity',
+    description:
+      'Solo SKUs publicados en estos marketplaces (lista separada por coma).',
+  })
+  @IsOptional()
+  @IsString()
+  publishedIn?: string;
+
+  @ApiPropertyOptional({
+    example: 'fravega',
+    description:
+      'Solo SKUs NO publicados en estos marketplaces (lista separada por coma).',
+  })
+  @IsOptional()
+  @IsString()
+  notPublishedIn?: string;
+
+  @ApiPropertyOptional({
+    example: 'any',
+    description:
+      'any = publicado en al menos uno de publishedIn; all = publicado en todos.',
+  })
+  @IsOptional()
+  @IsIn(['any', 'all'])
+  publishedMatch?: 'any' | 'all';
+
+  @ApiPropertyOptional({
+    example: 'true',
+    description:
+      'Atajo: true = publicado en alguno de marketplaces; false = no publicado en ninguno.',
+  })
+  @IsOptional()
+  @IsString()
+  published?: string;
+
+  @ApiPropertyOptional({
+    example: 'Jadever',
+    description: 'Marcas separadas por coma.',
+  })
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
+  @ApiPropertyOptional({
+    example: 'MLA1234',
+    description: 'category_id o category_name, separados por coma.',
+  })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({
+    example: 'cuotas',
+    description:
+      'clasica (gold_special) | cuotas (gold_pro / premium) | gratuita (free). Separados por coma. Matchea si el SKU tiene al menos una publicacion de ese tipo.',
+  })
+  @IsOptional()
+  @IsString()
+  listingType?: string;
+
+  @ApiPropertyOptional({
+    example: 'price',
+    description: 'price | stock | title | sku | updated_at.',
+  })
+  @IsOptional()
+  @IsIn(['price', 'stock', 'title', 'sku', 'updated_at'])
+  sortBy?: string;
+
+  @ApiPropertyOptional({ example: 'asc', description: 'asc | desc.' })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sortDir?: string;
 
   @ApiPropertyOptional({ example: 50 })
   @Type(() => Number)

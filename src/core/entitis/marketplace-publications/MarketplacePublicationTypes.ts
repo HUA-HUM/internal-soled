@@ -88,22 +88,99 @@ export type MissingMarketplacePublicationsResult = {
   };
 };
 
+export type MarketplaceListingType = 'clasica' | 'cuotas' | 'gratuita';
+
+export type MarketplaceStockFilter = 'in_stock' | 'out_of_stock';
+
+export type MarketplaceSkuStatusSortBy =
+  | 'price'
+  | 'stock'
+  | 'title'
+  | 'sku'
+  | 'updated_at';
+
+export type MarketplaceSkuStatusSortDir = 'asc' | 'desc';
+
+export type MarketplaceSkuStatusFilters = {
+  sku?: string;
+  search?: string;
+  marketplaces: string[];
+  listingTypes: string[];
+  statuses: string[];
+  active?: boolean;
+  brands: string[];
+  categories: string[];
+  stock?: MarketplaceStockFilter;
+  publishedIn: string[];
+  notPublishedIn: string[];
+  publishedMatch: 'any' | 'all';
+  published?: boolean;
+  sortBy: MarketplaceSkuStatusSortBy;
+  sortDir: MarketplaceSkuStatusSortDir;
+  limit: number;
+  offset: number;
+};
+
+/**
+ * Una fila por SKU. Los campos de display (title, price, status, thumbnail...)
+ * vienen de una publicacion representativa; los campos agregados resumen todas
+ * las publicaciones que el SKU tiene en Mercado Libre.
+ */
 export type MarketplacePublicationSkuStatusRow = {
   sku: string;
   meli_item_id: string;
   title: string | null;
   status: string | null;
   price: number | null;
+  price_min: number | null;
+  price_max: number | null;
   available_quantity: number | null;
+  stock: number | null;
   thumbnail: string | null;
+  permalink: string | null;
+  brand: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  listing_type_id: string | null;
+  listing_type: string | null;
+  publications: number;
+  active_publications: number;
+  classic_publications: number;
+  premium_publications: number;
+  in_stock: boolean;
+  is_active: boolean;
+  updated_at: string | null;
 } & Record<string, string | number | boolean | null>;
 
 export type MarketplacePublicationSkuStatusResult = {
   items: MarketplacePublicationSkuStatusRow[];
   marketplaces: string[];
+  filters: MarketplaceSkuStatusAppliedFilters;
   pagination: {
     limit: number;
     offset: number;
     total: number;
   };
+};
+
+export type MarketplaceSkuStatusAppliedFilters = Omit<
+  MarketplaceSkuStatusFilters,
+  'limit' | 'offset' | 'marketplaces'
+>;
+
+export type MarketplaceSkuStatusFacetValue = {
+  value: string;
+  label: string;
+  total: number;
+};
+
+export type MarketplaceSkuStatusFacetsResult = {
+  marketplaces: string[];
+  brands: MarketplaceSkuStatusFacetValue[];
+  categories: MarketplaceSkuStatusFacetValue[];
+  listingTypes: MarketplaceSkuStatusFacetValue[];
+  statuses: MarketplaceSkuStatusFacetValue[];
+  stock: MarketplaceSkuStatusFacetValue[];
+  price: { min: number | null; max: number | null };
+  total: number;
 };

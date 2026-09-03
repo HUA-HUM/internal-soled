@@ -1,17 +1,58 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { ISQLMarketplacePublicationsRepository } from 'src/core/adapters/marketplace-publications/ISQLMarketplacePublicationsRepository';
 import {
   MarketplacePublicationListResult,
   MarketplacePublicationRow,
   MarketplacePublicationSkuStatusResult,
+  MarketplaceSkuStatusFacetsResult,
+  MarketplaceSkuStatusFilters,
+  MarketplaceSkuStatusSortBy,
+  MarketplaceStockFilter,
   MissingMarketplacePublicationsResult,
 } from 'src/core/entitis/marketplace-publications/MarketplacePublicationTypes';
 import {
+  MarketplacePublicationSkuStatusQueryDTO,
   UpdateMarketplacePublicationPriceDTO,
   UpdateMarketplacePublicationStatusDTO,
   UpdateMarketplacePublicationStockDTO,
   UpsertMarketplacePublicationDTO,
 } from 'src/app/controller/marketplace-publications/internal/dto/MarketplacePublicationDTO';
+
+const LISTING_TYPE_ALIASES: Record<string, string> = {
+  clasica: 'gold_special',
+  clásica: 'gold_special',
+  classic: 'gold_special',
+  gold_special: 'gold_special',
+  cuotas: 'gold_pro',
+  premium: 'gold_pro',
+  gold_pro: 'gold_pro',
+  gratuita: 'free',
+  free: 'free',
+};
+
+const STOCK_ALIASES: Record<string, MarketplaceStockFilter> = {
+  in_stock: 'in_stock',
+  con_stock: 'in_stock',
+  disponible: 'in_stock',
+  true: 'in_stock',
+  out_of_stock: 'out_of_stock',
+  sin_stock: 'out_of_stock',
+  no_disponible: 'out_of_stock',
+  false: 'out_of_stock',
+};
+
+const SORT_BY_VALUES = new Set<string>([
+  'price',
+  'stock',
+  'title',
+  'sku',
+  'updated_at',
+]);
 
 @Injectable()
 export class MarketplacePublicationsService {
@@ -54,18 +95,115 @@ export class MarketplacePublicationsService {
     });
   }
 
-  listSkuPublicationStatus(params: {
-    sku?: string;
-    marketplaces?: string[];
-    limit?: number;
-    offset?: number;
-  }): Promise<MarketplacePublicationSkuStatusResult> {
-    return this.publicationsRepository.listSkuPublicationStatus({
-      sku: params.sku,
-      marketplaces: params.marketplaces ?? [],
-      limit: params.limit ?? 50,
-      offset: params.offset ?? 0,
-    });
+  listSkuPublicationStatus(
+    query: MarketplacePublicationSkuStatusQueryDTO,
+  ): Promise<MarketplacePublicationSkuStatusResult> {
+    return this.publicationsRepository.listSkuPublicationStatus(
+      this.buildSkuStatusFilters(query),
+    );
+  }
+
+  getSkuPublicationFacets(): Promise<MarketplaceSkuStatusFacetsResult> {
+    return this.publicationsRepository.getSkuPublicationFacets();
+  }
+
+  private buildSkuStatusFilters(
+    query: MarketplacePublicationSkuStatusQueryDTO,
+  ): MarketplaceSkuStatusFilters {
+    return {
+      sku: query.sku?.trim() || undefined,
+      search: query.search?.trim() || undefined,
+      marketplaces: this.parseList(query.marketplaces),
+      listingTypes: this.parseListingTypes(query.listingType),
+      statuses: this.parseList(query.status),
+      active: this.parseBoolean(query.active),
+      brands: this.parseList(query.brand),
+      categories: this.parseList(query.category),
+      stock: this.parseStock(query.stock),
+      publishedIn: this.parseList(query.publishedIn),
+      notPublishedIn: this.parseList(query.notPublishedIn),
+      publishedMatch: query.publishedMatch === 'all' ? 'all' : 'any',
+      published: this.parseBoolean(query.published),
+      sortBy: this.parseSortBy(query.sortBy),
+      sortDir: query.sortDir === 'asc' ? 'asc' : 'desc',
+      limit: query.limit ?? 50,
+      offset: query.offset ?? 0,
+    };
+  }
+
+  private parseList(value?: string): string[] {
+    if (!value) {
+      return [];
+    }
+
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  private parseListingTypes(value?: string): string[] {
+    const listingTypes = new Set<string>();
+
+    for (const item of this.parseList(value)) {
+      const normalized = LISTING_TYPE_ALIASES[item.toLowerCase()];
+
+      if (!normalized) {
+        throw new BadRequestException(
+          `listingType invalido: ${item}. Valores validos: clasica, cuotas, gratuita.`,
+        );
+      }
+
+      listingTypes.add(normalized);
+    }
+
+    return Array.from(listingTypes);
+  }
+
+  private parseStock(value?: string): MarketplaceStockFilter | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    const stock = STOCK_ALIASES[value.trim().toLowerCase()];
+
+    if (!stock) {
+      throw new BadRequestException(
+        `stock invalido: ${value}. Valores validos: in_stock, out_of_stock.`,
+      );
+    }
+
+    return stock;
+  }
+
+  private parseSortBy(value?: string): MarketplaceSkuStatusSortBy {
+    const sortBy = value?.trim().toLowerCase();
+
+    return sortBy && SORT_BY_VALUES.has(sortBy)
+      ? (sortBy as MarketplaceSkuStatusSortBy)
+      : 'updated_at';
+  }
+
+  private parseBoolean(value?: string | boolean): boolean | undefined {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    const normalized = value.trim().toLowerCase();
+
+    if (['true', '1', 'si', 'yes', 'activo'].includes(normalized)) {
+      return true;
+    }
+
+    if (['false', '0', 'no', 'inactivo'].includes(normalized)) {
+      return false;
+    }
+
+    return undefined;
   }
 
   async upsertPublication(

@@ -2,9 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import type { ISQLMarketplacePublicationsRepository } from 'src/core/adapters/marketplace-publications/ISQLMarketplacePublicationsRepository';
 import {
+  MarketplaceListingType,
   MarketplacePublicationListResult,
   MarketplacePublicationRow,
   MarketplacePublicationSkuStatusResult,
+  MarketplacePublicationSkuStatusRow,
+  MarketplaceSkuStatusAppliedFilters,
+  MarketplaceSkuStatusFacetsResult,
+  MarketplaceSkuStatusFilters,
   MissingMarketplacePublicationsResult,
   UpsertMarketplacePublicationInput,
 } from 'src/core/entitis/marketplace-publications/MarketplacePublicationTypes';
@@ -64,6 +69,118 @@ const DATETIME_COLUMNS = new Set<string>([
 ]);
 
 const DEFAULT_MARKETPLACES = ['oncity', 'fravega', 'megatone'];
+
+const SKU_AGGREGATE_COLUMNS = `
+  sku,
+  COUNT(*) AS publications,
+  SUM(status = 'active') AS active_publications,
+  SUM(listing_type_id = 'gold_special') AS classic_publications,
+  SUM(listing_type_id = 'gold_pro') AS premium_publications,
+  MIN(price) AS price_min,
+  MAX(price) AS price_max,
+  MAX(available_quantity) AS stock,
+  MAX(updated_at) AS updated_at
+`;
+
+/**
+ * Un SKU puede tener varias publicaciones en Mercado Libre (clasica, premium y
+ * los escalones de cuotas). Para los campos de display elegimos una sola:
+ * la mas barata entre las activas, y si ninguna esta activa, la mas barata.
+ */
+const REPRESENTATIVE_PUBLICATION_SQL = `
+  SELECT
+    sku,
+    meli_item_id,
+    title,
+    status,
+    price,
+    thumbnail,
+    permalink,
+    brand,
+    category_id,
+    category_name,
+    listing_type_id
+  FROM (
+    SELECT
+      mp.*,
+      ROW_NUMBER() OVER (
+        PARTITION BY mp.sku
+        ORDER BY (mp.status = 'active') DESC, mp.price ASC, mp.id DESC
+      ) AS rn
+    FROM mercadolibre_products mp
+    WHERE mp.sku IS NOT NULL AND mp.sku <> ''
+  ) ranked
+  WHERE rn = 1
+`;
+
+const PUBLISHED_EXISTS_SQL = (marketplacePlaceholders: string): string => `
+  SELECT 1
+  FROM marketplace_product_publications p
+  WHERE p.sku = agg.sku
+    AND p.marketplace IN (${marketplacePlaceholders})
+    AND p.publication_status = 'published'
+`;
+
+const SKU_STATUS_SORT_COLUMNS: Record<
+  MarketplaceSkuStatusFilters['sortBy'],
+  string
+> = {
+  price: 'agg.price_min',
+  stock: 'agg.stock',
+  title: 'rep.title',
+  sku: 'agg.sku',
+  updated_at: 'agg.updated_at',
+};
+
+type SkuAggregateRow = {
+  sku: string;
+  publications: string | number;
+  active_publications: string | number;
+  classic_publications: string | number;
+  premium_publications: string | number;
+  price_min: string | number | null;
+  price_max: string | number | null;
+  stock: string | number | null;
+  updated_at: string | null;
+  meli_item_id: string;
+  title: string | null;
+  status: string | null;
+  price: string | number | null;
+  thumbnail: string | null;
+  permalink: string | null;
+  brand: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  listing_type_id: string | null;
+};
+
+const LISTING_TYPE_LABELS: Record<string, string> = {
+  gold_special: 'Clasica',
+  gold_pro: 'Cuotas (Premium)',
+  free: 'Gratuita',
+};
+
+const LISTING_TYPE_VALUES: Record<string, MarketplaceListingType> = {
+  gold_special: 'clasica',
+  gold_pro: 'cuotas',
+  free: 'gratuita',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  active: 'Activo',
+  paused: 'Pausado',
+  closed: 'Cerrado',
+  inactive: 'Inactivo',
+  under_review: 'En revision',
+};
+
+const toListingTypeLabel = (listingTypeId: string | null): string | null => {
+  if (!listingTypeId) {
+    return null;
+  }
+
+  return LISTING_TYPE_VALUES[listingTypeId] ?? listingTypeId;
+};
 
 type PublicationColumn = (typeof PUBLICATION_COLUMNS)[number];
 
@@ -173,73 +290,93 @@ export class SQLMarketplacePublicationsRepository implements ISQLMarketplacePubl
     };
   }
 
-  async listSkuPublicationStatus(params: {
-    sku?: string;
-    marketplaces: string[];
-    limit: number;
-    offset: number;
-  }): Promise<MarketplacePublicationSkuStatusResult> {
+  async listSkuPublicationStatus(
+    params: MarketplaceSkuStatusFilters,
+  ): Promise<MarketplacePublicationSkuStatusResult> {
     const marketplaces = params.marketplaces.length
       ? params.marketplaces
       : await this.getKnownMarketplaces();
-    const skuFilter = params.sku?.trim();
-    const whereSql = skuFilter
-      ? "WHERE sku IS NOT NULL AND sku <> '' AND listing_type_id = 'gold_special' AND sku = ?"
-      : "WHERE sku IS NOT NULL AND sku <> '' AND listing_type_id = 'gold_special'";
-    const whereParams = skuFilter ? [skuFilter] : [];
+    const inner = this.buildSkuStatusInnerFilters(params);
+    const having = this.buildSkuStatusHaving(params);
+    const outer = this.buildSkuStatusMarketplaceFilters(params, marketplaces);
+    const aggregateSql = `
+      SELECT ${SKU_AGGREGATE_COLUMNS}
+      FROM mercadolibre_products
+      WHERE sku IS NOT NULL AND sku <> ''
+        ${inner.sql}
+      GROUP BY sku
+      ${having.sql}
+    `;
+    const aggregateParams = [...inner.params, ...having.params];
+    const orderBySql = `${SKU_STATUS_SORT_COLUMNS[params.sortBy]} ${
+      params.sortDir === 'asc' ? 'ASC' : 'DESC'
+    }`;
 
     const productsResult: unknown = await this.entityManager.query(
       `
       SELECT
-        mp.sku,
-        mp.meli_item_id,
-        mp.title,
-        mp.status,
-        mp.price,
-        mp.available_quantity,
-        mp.thumbnail
-      FROM mercadolibre_products mp
-      INNER JOIN (
-        SELECT MAX(id) AS id
-        FROM mercadolibre_products
-        ${whereSql}
-        GROUP BY sku
-      ) latest ON latest.id = mp.id
-      ORDER BY mp.updated_at DESC, mp.id DESC
+        agg.sku,
+        agg.publications,
+        agg.active_publications,
+        agg.classic_publications,
+        agg.premium_publications,
+        agg.price_min,
+        agg.price_max,
+        agg.stock,
+        DATE_FORMAT(agg.updated_at, '%Y-%m-%dT%H:%i:%s') AS updated_at,
+        rep.meli_item_id,
+        rep.title,
+        rep.status,
+        rep.price,
+        rep.thumbnail,
+        rep.permalink,
+        rep.brand,
+        rep.category_id,
+        rep.category_name,
+        rep.listing_type_id
+      FROM (${aggregateSql}) agg
+      INNER JOIN (${REPRESENTATIVE_PUBLICATION_SQL}) rep ON rep.sku = agg.sku
+      ${outer.sql}
+      ORDER BY ${orderBySql}, agg.sku ASC
       LIMIT ? OFFSET ?
       `,
-      [...whereParams, params.limit, params.offset],
+      [...aggregateParams, ...outer.params, params.limit, params.offset],
     );
-    const products = productsResult as {
-      sku: string;
-      meli_item_id: string;
-      title: string | null;
-      status: string | null;
-      price: number | null;
-      available_quantity: number | null;
-      thumbnail: string | null;
-    }[];
+    const products = productsResult as SkuAggregateRow[];
 
     const countResult: unknown = await this.entityManager.query(
       `
-      SELECT COUNT(DISTINCT sku) AS total
-      FROM mercadolibre_products
-      ${whereSql}
+      SELECT COUNT(*) AS total
+      FROM (${aggregateSql}) agg
+      ${outer.sql}
       `,
-      whereParams,
+      [...aggregateParams, ...outer.params],
     );
     const countRows = countResult as { total: string | number }[];
+    const appliedFilters: MarketplaceSkuStatusAppliedFilters = {
+      sku: params.sku,
+      search: params.search,
+      listingTypes: params.listingTypes,
+      statuses: params.statuses,
+      active: params.active,
+      brands: params.brands,
+      categories: params.categories,
+      stock: params.stock,
+      publishedIn: params.publishedIn,
+      notPublishedIn: params.notPublishedIn,
+      publishedMatch: params.publishedMatch,
+      published: params.published,
+      sortBy: params.sortBy,
+      sortDir: params.sortDir,
+    };
+    const pagination = {
+      limit: params.limit,
+      offset: params.offset,
+      total: Number(countRows[0]?.total ?? 0),
+    };
 
     if (!products.length) {
-      return {
-        items: [],
-        marketplaces,
-        pagination: {
-          limit: params.limit,
-          offset: params.offset,
-          total: Number(countRows[0]?.total ?? 0),
-        },
-      };
+      return { items: [], marketplaces, filters: appliedFilters, pagination };
     }
 
     const productSkus = products.map((product) => product.sku);
@@ -270,8 +407,32 @@ export class SQLMarketplacePublicationsRepository implements ISQLMarketplacePubl
 
     return {
       items: products.map((product) => {
-        const row: MarketplacePublicationSkuStatusResult['items'][number] = {
-          ...product,
+        const stock = this.toNumberOrNull(product.stock);
+        const activePublications = Number(product.active_publications ?? 0);
+        const row: MarketplacePublicationSkuStatusRow = {
+          sku: product.sku,
+          meli_item_id: product.meli_item_id,
+          title: product.title,
+          status: product.status,
+          price: this.toNumberOrNull(product.price),
+          price_min: this.toNumberOrNull(product.price_min),
+          price_max: this.toNumberOrNull(product.price_max),
+          available_quantity: stock,
+          stock,
+          thumbnail: product.thumbnail,
+          permalink: product.permalink,
+          brand: product.brand,
+          category_id: product.category_id,
+          category_name: product.category_name,
+          listing_type_id: product.listing_type_id,
+          listing_type: toListingTypeLabel(product.listing_type_id),
+          publications: Number(product.publications ?? 0),
+          active_publications: activePublications,
+          classic_publications: Number(product.classic_publications ?? 0),
+          premium_publications: Number(product.premium_publications ?? 0),
+          in_stock: (stock ?? 0) > 0,
+          is_active: activePublications > 0,
+          updated_at: product.updated_at,
         };
 
         for (const marketplace of marketplaces) {
@@ -283,12 +444,253 @@ export class SQLMarketplacePublicationsRepository implements ISQLMarketplacePubl
         return row;
       }),
       marketplaces,
-      pagination: {
-        limit: params.limit,
-        offset: params.offset,
-        total: Number(countRows[0]?.total ?? 0),
-      },
+      filters: appliedFilters,
+      pagination,
     };
+  }
+
+  async getSkuPublicationFacets(): Promise<MarketplaceSkuStatusFacetsResult> {
+    const marketplaces = await this.getKnownMarketplaces();
+    const from = `
+      FROM mercadolibre_products
+      WHERE sku IS NOT NULL AND sku <> ''
+    `;
+
+    const brandsResult: unknown = await this.entityManager.query(`
+      SELECT brand AS value, COUNT(DISTINCT sku) AS total
+      ${from} AND brand IS NOT NULL AND brand <> ''
+      GROUP BY brand
+      ORDER BY total DESC, brand ASC
+    `);
+    const categoriesResult: unknown = await this.entityManager.query(`
+      SELECT category_id AS value, MAX(category_name) AS label, COUNT(DISTINCT sku) AS total
+      ${from} AND category_id IS NOT NULL AND category_id <> ''
+      GROUP BY category_id
+      ORDER BY total DESC, label ASC
+    `);
+    const listingTypesResult: unknown = await this.entityManager.query(`
+      SELECT listing_type_id AS value, COUNT(DISTINCT sku) AS total
+      ${from} AND listing_type_id IS NOT NULL AND listing_type_id <> ''
+      GROUP BY listing_type_id
+      ORDER BY total DESC
+    `);
+    const statusesResult: unknown = await this.entityManager.query(`
+      SELECT status AS value, COUNT(DISTINCT sku) AS total
+      ${from} AND status IS NOT NULL AND status <> ''
+      GROUP BY status
+      ORDER BY total DESC
+    `);
+    const summaryResult: unknown = await this.entityManager.query(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN agg.stock > 0 THEN 1 ELSE 0 END) AS in_stock,
+        SUM(CASE WHEN agg.stock IS NULL OR agg.stock <= 0 THEN 1 ELSE 0 END) AS out_of_stock,
+        MIN(agg.price_min) AS min_price,
+        MAX(agg.price_max) AS max_price
+      FROM (
+        SELECT
+          MAX(available_quantity) AS stock,
+          MIN(price) AS price_min,
+          MAX(price) AS price_max
+        ${from}
+        GROUP BY sku
+      ) agg
+    `);
+
+    const brands = brandsResult as { value: string; total: number }[];
+    const categories = categoriesResult as {
+      value: string;
+      label: string | null;
+      total: number;
+    }[];
+    const listingTypes = listingTypesResult as {
+      value: string;
+      total: number;
+    }[];
+    const statuses = statusesResult as { value: string; total: number }[];
+    const summary = (
+      summaryResult as {
+        total: string | number;
+        in_stock: string | number | null;
+        out_of_stock: string | number | null;
+        min_price: string | number | null;
+        max_price: string | number | null;
+      }[]
+    )[0];
+
+    return {
+      marketplaces,
+      brands: brands.map((brand) => ({
+        value: brand.value,
+        label: brand.value,
+        total: Number(brand.total),
+      })),
+      categories: categories.map((category) => ({
+        value: category.value,
+        label: category.label ?? category.value,
+        total: Number(category.total),
+      })),
+      listingTypes: listingTypes.map((listingType) => ({
+        value: toListingTypeLabel(listingType.value) ?? listingType.value,
+        label: LISTING_TYPE_LABELS[listingType.value] ?? listingType.value,
+        total: Number(listingType.total),
+      })),
+      statuses: statuses.map((status) => ({
+        value: status.value,
+        label: STATUS_LABELS[status.value] ?? status.value,
+        total: Number(status.total),
+      })),
+      stock: [
+        {
+          value: 'in_stock',
+          label: 'Con stock',
+          total: Number(summary?.in_stock ?? 0),
+        },
+        {
+          value: 'out_of_stock',
+          label: 'Sin stock',
+          total: Number(summary?.out_of_stock ?? 0),
+        },
+      ],
+      price: {
+        min: this.toNumberOrNull(summary?.min_price ?? null),
+        max: this.toNumberOrNull(summary?.max_price ?? null),
+      },
+      total: Number(summary?.total ?? 0),
+    };
+  }
+
+  private buildSkuStatusInnerFilters(params: MarketplaceSkuStatusFilters): {
+    sql: string;
+    params: unknown[];
+  } {
+    if (!params.sku) {
+      return { sql: '', params: [] };
+    }
+
+    return { sql: 'AND sku = ?', params: [params.sku] };
+  }
+
+  private buildSkuStatusHaving(params: MarketplaceSkuStatusFilters): {
+    sql: string;
+    params: unknown[];
+  } {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (params.search) {
+      conditions.push(
+        'SUM(sku LIKE ? OR title LIKE ? OR meli_item_id LIKE ?) > 0',
+      );
+      const like = `%${params.search}%`;
+      values.push(like, like, like);
+    }
+
+    if (params.listingTypes.length) {
+      conditions.push(
+        `SUM(listing_type_id IN (${params.listingTypes.map(() => '?').join(', ')})) > 0`,
+      );
+      values.push(...params.listingTypes);
+    }
+
+    if (params.statuses.length) {
+      conditions.push(
+        `SUM(status IN (${params.statuses.map(() => '?').join(', ')})) > 0`,
+      );
+      values.push(...params.statuses);
+    }
+
+    if (params.active === true) {
+      conditions.push('active_publications > 0');
+    }
+
+    if (params.active === false) {
+      conditions.push('active_publications = 0');
+    }
+
+    if (params.brands.length) {
+      conditions.push(
+        `SUM(brand IN (${params.brands.map(() => '?').join(', ')})) > 0`,
+      );
+      values.push(...params.brands);
+    }
+
+    if (params.categories.length) {
+      const placeholders = params.categories.map(() => '?').join(', ');
+      conditions.push(
+        `SUM(category_id IN (${placeholders}) OR category_name IN (${placeholders})) > 0`,
+      );
+      values.push(...params.categories, ...params.categories);
+    }
+
+    if (params.stock === 'in_stock') {
+      conditions.push('stock > 0');
+    }
+
+    if (params.stock === 'out_of_stock') {
+      conditions.push('(stock IS NULL OR stock <= 0)');
+    }
+
+    return {
+      sql: conditions.length
+        ? `HAVING ${conditions.join('\n        AND ')}`
+        : '',
+      params: values,
+    };
+  }
+
+  private buildSkuStatusMarketplaceFilters(
+    params: MarketplaceSkuStatusFilters,
+    marketplaces: string[],
+  ): { sql: string; params: unknown[] } {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    const publishedIn = params.publishedIn.length
+      ? params.publishedIn
+      : params.published === true
+        ? marketplaces
+        : [];
+    const notPublishedIn = params.notPublishedIn.length
+      ? params.notPublishedIn
+      : params.published === false
+        ? marketplaces
+        : [];
+
+    if (publishedIn.length) {
+      if (params.publishedMatch === 'all') {
+        for (const marketplace of publishedIn) {
+          conditions.push(`EXISTS (${PUBLISHED_EXISTS_SQL('?')})`);
+          values.push(marketplace);
+        }
+      } else {
+        const placeholders = publishedIn.map(() => '?').join(', ');
+        conditions.push(`EXISTS (${PUBLISHED_EXISTS_SQL(placeholders)})`);
+        values.push(...publishedIn);
+      }
+    }
+
+    if (notPublishedIn.length) {
+      const placeholders = notPublishedIn.map(() => '?').join(', ');
+      conditions.push(`NOT EXISTS (${PUBLISHED_EXISTS_SQL(placeholders)})`);
+      values.push(...notPublishedIn);
+    }
+
+    return {
+      sql: conditions.length
+        ? `WHERE ${conditions.join('\n        AND ')}`
+        : '',
+      params: values,
+    };
+  }
+
+  private toNumberOrNull(value: string | number | null): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const parsed = Number(value);
+
+    return Number.isFinite(parsed) ? parsed : null;
   }
 
   async upsertPublication(

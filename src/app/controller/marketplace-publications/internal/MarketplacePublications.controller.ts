@@ -22,6 +22,7 @@ import {
   MarketplacePublicationListResult,
   MarketplacePublicationRow,
   MarketplacePublicationSkuStatusResult,
+  MarketplaceSkuStatusFacetsResult,
   MissingMarketplacePublicationsResult,
 } from 'src/core/entitis/marketplace-publications/MarketplacePublicationTypes';
 import {
@@ -75,25 +76,58 @@ export class MarketplacePublicationsController {
   @ApiOperation({
     summary: 'Lista estado de publicación por SKU y marketplace',
     description:
-      'Cruza mercadolibre_products contra marketplace_product_publications y devuelve flags booleanos por marketplace.',
+      'Una fila por SKU. Un SKU puede tener varias publicaciones en Mercado Libre (clásica, premium y los escalones de cuotas): los campos agregados (publications, active_publications, price_min, price_max, stock) resumen todas, y los de display vienen de la publicación más barata entre las activas. Los filtros matchean si al menos una publicación del SKU cumple. Cruza contra marketplace_product_publications y devuelve un flag booleano por marketplace.',
   })
   @ApiQuery({ name: 'sku', required: false, example: 'RMS-2M-NEG' })
+  @ApiQuery({ name: 'search', required: false, example: 'plafon' })
   @ApiQuery({
     name: 'marketplaces',
     required: false,
     example: 'oncity,fravega,megatone',
   })
+  @ApiQuery({
+    name: 'stock',
+    required: false,
+    example: 'in_stock',
+    description: 'in_stock | out_of_stock (acepta con_stock / sin_stock).',
+  })
+  @ApiQuery({
+    name: 'active',
+    required: false,
+    example: 'true',
+    description: 'true = activos en Mercado Libre; false = el resto.',
+  })
+  @ApiQuery({ name: 'status', required: false, example: 'active,paused' })
+  @ApiQuery({ name: 'publishedIn', required: false, example: 'oncity' })
+  @ApiQuery({ name: 'notPublishedIn', required: false, example: 'fravega' })
+  @ApiQuery({ name: 'publishedMatch', required: false, example: 'any' })
+  @ApiQuery({ name: 'published', required: false, example: 'true' })
+  @ApiQuery({ name: 'brand', required: false, example: 'Jadever' })
+  @ApiQuery({ name: 'category', required: false, example: 'MLA1234' })
+  @ApiQuery({
+    name: 'listingType',
+    required: false,
+    example: 'cuotas',
+    description: 'clasica | cuotas | gratuita.',
+  })
+  @ApiQuery({ name: 'sortBy', required: false, example: 'price' })
+  @ApiQuery({ name: 'sortDir', required: false, example: 'asc' })
   @ApiQuery({ name: 'limit', required: false, example: 50 })
   @ApiQuery({ name: 'offset', required: false, example: 0 })
   listSkuPublicationStatus(
     @Query() query: MarketplacePublicationSkuStatusQueryDTO,
   ): Promise<MarketplacePublicationSkuStatusResult> {
-    return this.publicationsService.listSkuPublicationStatus({
-      sku: query.sku,
-      marketplaces: this.parseMarketplaces(query.marketplaces),
-      limit: query.limit,
-      offset: query.offset,
-    });
+    return this.publicationsService.listSkuPublicationStatus(query);
+  }
+
+  @Get('status-by-sku/filters')
+  @ApiOperation({
+    summary: 'Opciones disponibles para los filtros de status-by-sku',
+    description:
+      'Devuelve marcas, categorías, tipos de publicación, estados y rango de precios, cada uno con su cantidad de SKUs, para poblar los filtros del front.',
+  })
+  getSkuPublicationFacets(): Promise<MarketplaceSkuStatusFacetsResult> {
+    return this.publicationsService.getSkuPublicationFacets();
   }
 
   @Get(':marketplace/:sku')
@@ -159,16 +193,5 @@ export class MarketplacePublicationsController {
     @Body() body: UpdateMarketplacePublicationStockDTO,
   ): Promise<{ ok: true }> {
     return this.publicationsService.updateStock(marketplace, sku, body);
-  }
-
-  private parseMarketplaces(marketplaces?: string): string[] {
-    if (!marketplaces) {
-      return [];
-    }
-
-    return marketplaces
-      .split(',')
-      .map((marketplace) => marketplace.trim())
-      .filter(Boolean);
   }
 }
