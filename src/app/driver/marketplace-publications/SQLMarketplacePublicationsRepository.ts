@@ -211,9 +211,30 @@ export class SQLMarketplacePublicationsRepository implements ISQLMarketplacePubl
 
   async listPublications(params: {
     sku?: string;
+    marketplace?: string;
+    status?: string;
+    limit: number;
+    offset: number;
   }): Promise<MarketplacePublicationListResult> {
-    const whereSql = params.sku ? 'WHERE sku = ?' : '';
-    const queryParams = params.sku ? [params.sku] : [];
+    const clauses: string[] = [];
+    const queryParams: unknown[] = [];
+
+    if (params.sku) {
+      clauses.push('sku = ?');
+      queryParams.push(params.sku);
+    }
+
+    if (params.marketplace) {
+      clauses.push('marketplace = ?');
+      queryParams.push(params.marketplace);
+    }
+
+    if (params.status) {
+      clauses.push('publication_status = ?');
+      queryParams.push(params.status);
+    }
+
+    const whereSql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
     const queryResult: unknown = await this.entityManager.query(
       `
@@ -221,12 +242,28 @@ export class SQLMarketplacePublicationsRepository implements ISQLMarketplacePubl
       FROM marketplace_product_publications
       ${whereSql}
       ORDER BY updated_at DESC, id DESC
+      LIMIT ? OFFSET ?
+      `,
+      [...queryParams, params.limit, params.offset],
+    );
+
+    const countResult: unknown = await this.entityManager.query(
+      `
+      SELECT COUNT(*) AS total
+      FROM marketplace_product_publications
+      ${whereSql}
       `,
       queryParams,
     );
+    const countRows = countResult as { total: string | number }[];
 
     return {
       items: queryResult as MarketplacePublicationRow[],
+      pagination: {
+        limit: params.limit,
+        offset: params.offset,
+        total: Number(countRows[0]?.total ?? 0),
+      },
     };
   }
 

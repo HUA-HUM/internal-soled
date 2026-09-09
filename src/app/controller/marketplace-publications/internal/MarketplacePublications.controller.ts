@@ -26,6 +26,7 @@ import {
   MissingMarketplacePublicationsResult,
 } from 'src/core/entitis/marketplace-publications/MarketplacePublicationTypes';
 import {
+  ListMarketplacePublicationsQueryDTO,
   MarketplacePublicationSkuStatusQueryDTO,
   MissingMarketplacePublicationsQueryDTO,
   UpdateMarketplacePublicationPriceDTO,
@@ -44,12 +45,20 @@ export class MarketplacePublicationsController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Busca publicaciones de marketplace' })
+  @ApiOperation({
+    summary: 'Busca publicaciones de marketplace',
+    description:
+      'Filtra por sku, marketplace y estado de publicación. Siempre paginado: sin limit usa 200, nunca devuelve la tabla completa.',
+  })
   @ApiQuery({ name: 'sku', required: false, example: 'RMS-2M-NEG' })
+  @ApiQuery({ name: 'marketplace', required: false, example: 'oncity' })
+  @ApiQuery({ name: 'status', required: false, example: 'published' })
+  @ApiQuery({ name: 'limit', required: false, example: 200 })
+  @ApiQuery({ name: 'offset', required: false, example: 0 })
   listPublications(
-    @Query('sku') sku?: string,
+    @Query() query: ListMarketplacePublicationsQueryDTO,
   ): Promise<MarketplacePublicationListResult> {
-    return this.publicationsService.listPublications({ sku });
+    return this.publicationsService.listPublications(query);
   }
 
   @Get('missing/:marketplace')

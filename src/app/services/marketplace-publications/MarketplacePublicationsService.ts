@@ -9,6 +9,7 @@ import {
   MarketplacePublicationListResult,
   MarketplacePublicationRow,
   MarketplacePublicationSkuStatusResult,
+  MarketplacePublicationStatus,
   MarketplaceSkuStatusFacetsResult,
   MarketplaceSkuStatusFilters,
   MarketplaceSkuStatusSortBy,
@@ -22,6 +23,9 @@ import {
   UpdateMarketplacePublicationStockDTO,
   UpsertMarketplacePublicationDTO,
 } from 'src/app/controller/marketplace-publications/internal/dto/MarketplacePublicationDTO';
+
+/** Sin limit explicito igual paginamos: "sin filtro" nunca debe significar "sin limite". */
+const DEFAULT_PUBLICATIONS_LIMIT = 200;
 
 const LISTING_TYPE_ALIASES: Record<string, string> = {
   clasica: 'gold_special',
@@ -79,8 +83,18 @@ export class MarketplacePublicationsService {
 
   listPublications(params: {
     sku?: string;
+    marketplace?: string;
+    status?: MarketplacePublicationStatus;
+    limit?: number;
+    offset?: number;
   }): Promise<MarketplacePublicationListResult> {
-    return this.publicationsRepository.listPublications(params);
+    return this.publicationsRepository.listPublications({
+      sku: params.sku,
+      marketplace: params.marketplace,
+      status: params.status,
+      limit: params.limit ?? DEFAULT_PUBLICATIONS_LIMIT,
+      offset: params.offset ?? 0,
+    });
   }
 
   listMissingPublications(params: {

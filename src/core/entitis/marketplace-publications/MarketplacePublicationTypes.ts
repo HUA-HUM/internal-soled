@@ -63,6 +63,11 @@ export type UpsertMarketplacePublicationInput =
 
 export type MarketplacePublicationListResult = {
   items: MarketplacePublicationRow[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+  };
 };
 
 export type MissingMarketplacePublicationRow = {

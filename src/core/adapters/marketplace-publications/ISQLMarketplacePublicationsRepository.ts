@@ -17,6 +17,10 @@ export interface ISQLMarketplacePublicationsRepository {
   ): Promise<MarketplacePublicationRow | null>;
   listPublications(params: {
     sku?: string;
+    marketplace?: string;
+    status?: string;
+    limit: number;
+    offset: number;
   }): Promise<MarketplacePublicationListResult>;
   listMissingPublications(params: {
     marketplace: string;

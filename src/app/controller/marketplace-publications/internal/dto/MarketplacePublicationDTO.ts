@@ -6,12 +6,57 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   Min,
 } from 'class-validator';
 import type {
   MarketplacePublicationStatus,
   MarketplacePublicationSyncStatus,
 } from 'src/core/entitis/marketplace-publications/MarketplacePublicationTypes';
+
+const MARKETPLACES = ['oncity', 'fravega'] as const;
+const PUBLICATION_STATUSES = [
+  'draft',
+  'pending_publish',
+  'published',
+  'paused',
+  'rejected',
+  'error',
+  'out_of_sync',
+  'deleted',
+] as const;
+
+export class ListMarketplacePublicationsQueryDTO {
+  @ApiPropertyOptional({ example: 'JDCDS520' })
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @ApiPropertyOptional({ example: 'oncity', enum: MARKETPLACES })
+  @IsOptional()
+  @IsIn(MARKETPLACES)
+  marketplace?: string;
+
+  @ApiPropertyOptional({ example: 'published', enum: PUBLICATION_STATUSES })
+  @IsOptional()
+  @IsIn(PUBLICATION_STATUSES)
+  status?: MarketplacePublicationStatus;
+
+  @ApiPropertyOptional({ example: 200 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
+}
 
 export class UpsertMarketplacePublicationDTO {
   @ApiPropertyOptional({ example: 'mercadolibre' })
