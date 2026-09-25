@@ -27,6 +27,8 @@ export type MeliProductDTO = {
   pictures?: unknown;
   video_id?: string | null;
   logistic_type?: string | null;
+  installments_campaign?: string | null;
+  installments_quantity?: number | null;
   shipping_mode?: string | null;
   free_shipping?: boolean | number | null;
   local_pick_up?: boolean | number | null;

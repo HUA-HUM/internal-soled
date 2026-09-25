@@ -42,6 +42,8 @@ const PRODUCT_COLUMNS = [
   'pictures',
   'video_id',
   'logistic_type',
+  'installments_campaign',
+  'installments_quantity',
   'shipping_mode',
   'free_shipping',
   'local_pick_up',
