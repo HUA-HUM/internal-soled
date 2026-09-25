@@ -8,6 +8,8 @@ import { MarketplacePublicationsModule } from './marketplace-publications/Market
 import { MarketplaceChangeActionsModule } from './marketplace-change-actions/MarketplaceChangeActions.Module';
 import { ProcessRunsModule } from './process-runs/ProcessRuns.Module';
 import { CoresaPublicationsModule } from './coresa-publications/CoresaPublications.Module';
+import { CoresaProductsModule } from './coresa-products/CoresaProducts.Module';
+import { CoresaProductsInMeliModule } from './coresa-products-in-mercadolibre/CoresaProductsInMeli.Module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { CoresaPublicationsModule } from './coresa-publications/CoresaPublicatio
     MarketplaceChangeActionsModule,
     ProcessRunsModule,
     CoresaPublicationsModule,
+    CoresaProductsModule,
+    CoresaProductsInMeliModule,
   ],
 })
 export class AppModule {}
