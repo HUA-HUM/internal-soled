@@ -1,10 +1,17 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { setupSwagger } from './app/common/swagger/swagger.setup';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app/module/app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
+
+  // El default de Express es 100kb. Un bulk de Coresa de ~100 productos ya lo supera.
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '10mb' });
 
   app.enableCors();
 
