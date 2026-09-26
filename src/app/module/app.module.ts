@@ -10,6 +10,7 @@ import { ProcessRunsModule } from './process-runs/ProcessRuns.Module';
 import { CoresaPublicationsModule } from './coresa-publications/CoresaPublications.Module';
 import { CoresaProductsModule } from './coresa-products/CoresaProducts.Module';
 import { CoresaProductsInMeliModule } from './coresa-products-in-mercadolibre/CoresaProductsInMeli.Module';
+import { CoresaSyncChangesModule } from './coresa-sync-changes/CoresaSyncChanges.Module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { CoresaProductsInMeliModule } from './coresa-products-in-mercadolibre/Co
     CoresaPublicationsModule,
     CoresaProductsModule,
     CoresaProductsInMeliModule,
+    CoresaSyncChangesModule,
   ],
 })
 export class AppModule {}
