@@ -102,11 +102,22 @@ export class ProductsController {
 
   @Get('by-sku/:sku')
   @ApiOperation({
-    summary: 'Busca un producto por SKU',
+    summary: 'Busca las publicaciones de un SKU',
+    description:
+      'Devuelve TODAS las publicaciones del SKU, no una sola: un SKU tiene una clásica, una premium y un escalón por cada campaña de cuotas. Paginado como el resto del módulo; el orden es lo último actualizado primero. 404 si el SKU no tiene ninguna.',
   })
   @ApiParam({ name: 'sku', example: 'RMS-2M-NEG' })
-  findProductBySku(@Param('sku') sku: string): Promise<MeliProductRow> {
-    return this.productsService.findProductBySku(sku);
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  findProductsBySku(
+    @Param('sku') sku: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<PaginatedResult<MeliProductRow>> {
+    return this.productsService.findProductsBySku(
+      sku,
+      this.productsService.parsePagination(page, limit),
+    );
   }
 
   @Get('by-mla/:meliItemId')

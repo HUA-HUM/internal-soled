@@ -128,18 +128,28 @@ export class MeliProductsService {
     return product;
   }
 
-  async findProductBySku(sku: string): Promise<MeliProductRow> {
+  /**
+   * Devuelve todas las publicaciones del SKU. Se mantiene el 404 cuando no hay
+   * ninguna, para no cambiarle la semantica a quien ya distingue ese caso.
+   */
+  async findProductsBySku(
+    sku: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<MeliProductRow>> {
     if (!sku || sku.trim() === '') {
       throw new BadRequestException('sku is required');
     }
 
-    const product = await this.productsRepository.findProductBySku(sku.trim());
+    const result = await this.productsRepository.findProductsBySku(
+      sku.trim(),
+      pagination,
+    );
 
-    if (!product) {
+    if (!result.total) {
       throw new NotFoundException('Product not found');
     }
 
-    return product;
+    return result;
   }
 
   async findProductByMla(meliItemId: string): Promise<MeliProductRow> {

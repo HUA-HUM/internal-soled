@@ -166,20 +166,44 @@ export class SQLMeliProductsRepository implements ISQLMeliProductsRepository {
     return rows.length ? rows[0] : null;
   }
 
-  async findProductBySku(sku: string): Promise<MeliProductRow | null> {
+  /**
+   * Un SKU tiene varias publicaciones en Mercado Libre (clasica, premium y un
+   * escalon por cada campana de cuotas), asi que devuelve todas y no una sola.
+   * Mismo orden que getProducts: lo ultimo tocado primero.
+   */
+  async findProductsBySku(
+    sku: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<MeliProductRow>> {
+    const offset = this.getOffset(pagination);
+
     const queryResult: unknown = await this.entityManager.query(
       `
       SELECT *
       FROM mercadolibre_products
       WHERE sku = ?
       ORDER BY updated_at DESC, id DESC
-      LIMIT 1
+      LIMIT ? OFFSET ?
       `,
-      [sku],
+      [sku, pagination.limit, offset],
     );
     const rows = queryResult as MeliProductRow[];
 
-    return rows.length ? rows[0] : null;
+    const countResult: unknown = await this.entityManager.query(
+      `
+      SELECT COUNT(*) AS total
+      FROM mercadolibre_products
+      WHERE sku = ?
+      `,
+      [sku],
+    );
+    const countRows = countResult as { total: string | number }[];
+
+    return this.toPaginatedResult(
+      rows,
+      pagination,
+      Number(countRows[0]?.total ?? 0),
+    );
   }
 
   async findProductByMla(meliItemId: string): Promise<MeliProductRow | null> {
