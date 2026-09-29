@@ -21,7 +21,7 @@ import {
 export class BulkCoresaProductsDTO {
   @ApiProperty({
     description:
-      'Productos tal cual llegan del feed de Coresa. Se upsertean por SKU.',
+      'Productos tal cual llegan del feed de Coresa. Se upsertean por SKU. base_units dice a cuántas unidades corresponde Precio_Convertido (el empaque de Coresa); si no viene, la fila conserva el valor que tenía y una fila nueva arranca en 1.',
     example: [
       {
         SKU: '30005000106',
@@ -33,6 +33,8 @@ export class BulkCoresaProductsDTO {
         Minimo_Venta: false,
         Venta_Unitaria: true,
         Precio_Lista_1: 2,
+        Precio_Convertido: 919209,
+        base_units: 100,
         Impuestos: 'IVA_21',
         Moneda: 'USD',
         CantMinima: 1,

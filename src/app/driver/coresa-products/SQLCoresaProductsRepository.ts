@@ -3,8 +3,8 @@ import { InjectEntityManager } from '@nestjs/typeorm';
 import type { ISQLCoresaProductsRepository } from 'src/core/adapters/coresa-products/ISQLCoresaProductsRepository';
 import {
   CORESA_PRODUCT_FIELDS,
-  CORESA_PRODUCT_UPDATABLE_FIELDS,
   CoresaFieldType,
+  CoresaProductField,
   CoresaProductDTO,
   CoresaProductFilters,
   CoresaProductInput,
@@ -26,19 +26,23 @@ const UPSERT_CHUNK_SIZE = 100;
  */
 const quote = (field: string): string => `\`${field}\``;
 
-const INSERT_COLUMNS_SQL = CORESA_PRODUCT_FIELDS.map((field) =>
-  quote(field.field),
-).join(', ');
+/** Columnas que siempre se escriben. */
+const ALWAYS_FIELDS = CORESA_PRODUCT_FIELDS.filter(
+  (field) => !field.skipWhenAbsent,
+);
 
-const ROW_PLACEHOLDERS = `(${CORESA_PRODUCT_FIELDS.map(() => '?').join(', ')})`;
+/** Columnas que solo se escriben si el producto las trae. */
+const OPTIONAL_FIELDS = CORESA_PRODUCT_FIELDS.filter(
+  (field) => field.skipWhenAbsent,
+);
 
-const UPDATE_ASSIGNMENTS_SQL = CORESA_PRODUCT_UPDATABLE_FIELDS.map((field) => {
+const buildAssignment = (field: CoresaProductField): string => {
   const column = quote(field.field);
 
   return field.preserveOnUpsert
     ? `${column} = COALESCE(VALUES(${column}), ${column})`
     : `${column} = VALUES(${column})`;
-}).join(', ');
+};
 
 @Injectable()
 export class SQLCoresaProductsRepository implements ISQLCoresaProductsRepository {
@@ -57,34 +61,80 @@ export class SQLCoresaProductsRepository implements ISQLCoresaProductsRepository
     await this.entityManager.transaction(async (manager) => {
       for (let start = 0; start < products.length; start += UPSERT_CHUNK_SIZE) {
         const chunk = products.slice(start, start + UPSERT_CHUNK_SIZE);
-        const values: unknown[] = [];
 
-        for (const product of chunk) {
-          for (const field of CORESA_PRODUCT_FIELDS) {
-            values.push(
-              this.normalize(
-                field.type,
-                product[field.field],
-                field.notNullFallback,
+        for (const group of this.groupByOptionalFields(chunk)) {
+          await manager.query(
+            this.buildUpsertSql(group.fields, group.products.length),
+            group.products.flatMap((product) =>
+              group.fields.map((field) =>
+                this.normalize(
+                  field.type,
+                  product[field.field],
+                  field.notNullFallback,
+                ),
               ),
-            );
-          }
+            ),
+          );
         }
-
-        await manager.query(
-          `
-          INSERT INTO coresa_products (${INSERT_COLUMNS_SQL})
-          VALUES ${chunk.map(() => ROW_PLACEHOLDERS).join(', ')}
-          ON DUPLICATE KEY UPDATE ${UPDATE_ASSIGNMENTS_SQL}
-          `,
-          values,
-        );
 
         upserted += chunk.length;
       }
     });
 
     return upserted;
+  }
+
+  /**
+   * Parte el lote segun que columnas opcionales trae cada producto. Es la unica
+   * forma de respetar "si no viene, no se pisa" en una columna NOT NULL dentro
+   * de un INSERT multi-fila: la columna se excluye del statement, asi la fila
+   * nueva toma su DEFAULT y la existente conserva su valor. En la practica
+   * coresa-api manda siempre la misma forma, asi que es un solo grupo.
+   */
+  private groupByOptionalFields(
+    products: CoresaProductInput[],
+  ): { fields: CoresaProductField[]; products: CoresaProductInput[] }[] {
+    const groups = new Map<
+      string,
+      { fields: CoresaProductField[]; products: CoresaProductInput[] }
+    >();
+
+    for (const product of products) {
+      const present = OPTIONAL_FIELDS.filter(
+        (field) => product[field.field] !== undefined,
+      );
+      const key = present.map((field) => field.field).join(',');
+      const group = groups.get(key);
+
+      if (group) {
+        group.products.push(product);
+      } else {
+        groups.set(key, {
+          fields: [...ALWAYS_FIELDS, ...present],
+          products: [product],
+        });
+      }
+    }
+
+    return Array.from(groups.values());
+  }
+
+  private buildUpsertSql(
+    fields: CoresaProductField[],
+    rowCount: number,
+  ): string {
+    const columnsSql = fields.map((field) => quote(field.field)).join(', ');
+    const rowPlaceholders = `(${fields.map(() => '?').join(', ')})`;
+    const assignments = fields
+      .filter((field) => field.field !== 'SKU')
+      .map((field) => buildAssignment(field))
+      .join(', ');
+
+    return `
+      INSERT INTO coresa_products (${columnsSql})
+      VALUES ${Array.from({ length: rowCount }, () => rowPlaceholders).join(', ')}
+      ON DUPLICATE KEY UPDATE ${assignments}
+    `;
   }
 
   async getBySku(sku: string): Promise<CoresaProductDTO | null> {

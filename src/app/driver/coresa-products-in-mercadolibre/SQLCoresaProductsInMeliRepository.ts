@@ -6,6 +6,7 @@ import {
   CoresaProductInMeliFilters,
   CoresaProductInMeliListResult,
   CoresaProductInMeliRow,
+  CoresaProductInMeliVariantInput,
   UpdateCoresaProductInMeliInput,
   UpsertCoresaProductInMeliInput,
 } from 'src/core/entitis/coresa-products-in-mercadolibre/CoresaProductInMeliTypes';
@@ -14,21 +15,27 @@ import { EntityManager } from 'typeorm';
 const UPSERT_CHUNK_SIZE = 500;
 
 /**
- * La tabla tiene PRIMARY KEY (SKU) y UNIQUE (MLA), y las columnas usan
- * mayusculas, asi que van siempre entre backticks.
+ * Clave del input -> columna. El orden fija el orden del INSERT.
  *
- * Con esas dos claves, un upsert que choca por SKU reasigna la MLA de ese SKU,
- * y uno que choca por MLA reasigna sus flags. Es lo que se espera al volver a
- * registrar un producto.
+ * SKU y MLA van aparte porque siempre se escriben; estas son las opcionales, y
+ * una clave ausente se excluye del INSERT: asi la fila nueva toma el DEFAULT de
+ * la columna y la fila existente conserva su valor.
  */
-const UPSERT_SQL = `
-  INSERT INTO coresa_products_in_mercadolibre (\`SKU\`, \`MLA\`, \`updateStock\`, \`updatePrice\`)
-  VALUES %VALUES%
-  ON DUPLICATE KEY UPDATE
-    \`MLA\` = VALUES(\`MLA\`),
-    \`updateStock\` = VALUES(\`updateStock\`),
-    \`updatePrice\` = VALUES(\`updatePrice\`)
-`;
+const VARIANT_COLUMNS: Record<keyof CoresaProductInMeliVariantInput, string> = {
+  updateStock: 'updateStock',
+  updatePrice: 'updatePrice',
+  listingType: 'listing_type',
+  unitsPerListing: 'units_per_listing',
+  modalidad: 'modalidad',
+  priceFactor: 'price_factor',
+  origen: 'origen',
+};
+
+const VARIANT_KEYS = Object.keys(
+  VARIANT_COLUMNS,
+) as (keyof CoresaProductInMeliVariantInput)[];
+
+const quote = (column: string): string => `\`${column}\``;
 
 @Injectable()
 export class SQLCoresaProductsInMeliRepository implements ISQLCoresaProductsInMeliRepository {
@@ -40,15 +47,7 @@ export class SQLCoresaProductsInMeliRepository implements ISQLCoresaProductsInMe
   async upsert(
     input: UpsertCoresaProductInMeliInput,
   ): Promise<CoresaProductInMeliDTO> {
-    await this.entityManager.query(
-      UPSERT_SQL.replace('%VALUES%', '(?, ?, ?, ?)'),
-      [
-        input.sku,
-        input.mla,
-        this.toFlag(input.updateStock),
-        this.toFlag(input.updatePrice),
-      ],
-    );
+    await this.runUpsert(this.entityManager, [input]);
 
     const publication = await this.getByMla(input.mla);
 
@@ -66,35 +65,83 @@ export class SQLCoresaProductsInMeliRepository implements ISQLCoresaProductsInMe
       return 0;
     }
 
-    let upserted = 0;
-
     await this.entityManager.transaction(async (manager) => {
       for (let start = 0; start < inputs.length; start += UPSERT_CHUNK_SIZE) {
-        const chunk = inputs.slice(start, start + UPSERT_CHUNK_SIZE);
-        const values: unknown[] = [];
-
-        for (const input of chunk) {
-          values.push(
-            input.sku,
-            input.mla,
-            this.toFlag(input.updateStock),
-            this.toFlag(input.updatePrice),
-          );
-        }
-
-        await manager.query(
-          UPSERT_SQL.replace(
-            '%VALUES%',
-            chunk.map(() => '(?, ?, ?, ?)').join(', '),
-          ),
-          values,
+        await this.runUpsert(
+          manager,
+          inputs.slice(start, start + UPSERT_CHUNK_SIZE),
         );
-
-        upserted += chunk.length;
       }
     });
 
-    return upserted;
+    return inputs.length;
+  }
+
+  /**
+   * Agrupa las filas por el conjunto de campos que traen y manda un INSERT por
+   * grupo. Es la forma de respetar "lo que no viene no se pisa" en un INSERT
+   * multi-fila, donde ON DUPLICATE KEY UPDATE no puede decidir columna por
+   * columna segun la fila. En la practica coresa-api manda siempre la misma
+   * forma, asi que suele ser un solo grupo.
+   */
+  private async runUpsert(
+    manager: EntityManager,
+    inputs: UpsertCoresaProductInMeliInput[],
+  ): Promise<void> {
+    const groups = new Map<string, UpsertCoresaProductInMeliInput[]>();
+
+    for (const input of inputs) {
+      const present = VARIANT_KEYS.filter(
+        (key) => input[key] !== undefined,
+      ).join(',');
+      const group = groups.get(present);
+
+      if (group) {
+        group.push(input);
+      } else {
+        groups.set(present, [input]);
+      }
+    }
+
+    for (const [present, group] of groups) {
+      const keys = present
+        ? (present.split(',') as (keyof CoresaProductInMeliVariantInput)[])
+        : [];
+      const columns = [
+        'SKU',
+        'MLA',
+        ...keys.map((key) => VARIANT_COLUMNS[key]),
+      ];
+      const placeholders = `(${columns.map(() => '?').join(', ')})`;
+      // El upsert es por MLA: si esa MLA ya estaba, se actualiza su fila, y el
+      // SKU tambien, por si se reasigno.
+      const assignments = [
+        '`SKU` = VALUES(`SKU`)',
+        ...keys.map((key) => {
+          const column = quote(VARIANT_COLUMNS[key]);
+
+          return `${column} = VALUES(${column})`;
+        }),
+      ].join(', ');
+      const values: unknown[] = [];
+
+      for (const input of group) {
+        values.push(input.sku, input.mla);
+
+        for (const key of keys) {
+          values.push(this.toColumnValue(key, input[key]));
+        }
+      }
+
+      await manager.query(
+        `
+        INSERT INTO coresa_products_in_mercadolibre (${columns.map(quote).join(', ')})
+        VALUES ${group.map(() => placeholders).join(', ')}
+        ON DUPLICATE KEY UPDATE ${assignments}
+        `,
+        values,
+      );
+    }
   }
 
   async getBySku(sku: string): Promise<CoresaProductInMeliDTO[]> {
@@ -219,6 +266,17 @@ export class SQLCoresaProductsInMeliRepository implements ISQLCoresaProductsInMe
     };
   }
 
+  private toColumnValue(
+    key: keyof CoresaProductInMeliVariantInput,
+    value: unknown,
+  ): unknown {
+    if (key === 'updateStock' || key === 'updatePrice') {
+      return value ? 1 : 0;
+    }
+
+    return value ?? null;
+  }
+
   private buildAssignments(input: UpdateCoresaProductInMeliInput): {
     assignments: string[];
     queryParams: unknown[];
@@ -286,17 +344,24 @@ export class SQLCoresaProductsInMeliRepository implements ISQLCoresaProductsInMe
     return result as CoresaProductInMeliRow[];
   }
 
-  private toFlag(value: boolean | undefined): number {
-    return value === false ? 0 : 1;
-  }
-
+  /**
+   * listing_type, units_per_listing y modalidad vuelven en null en las filas
+   * heredadas. Ese null es informacion, no se completa con defaults.
+   */
   private toDTO(row: CoresaProductInMeliRow): CoresaProductInMeliDTO {
     return {
       sku: row.SKU,
       mla: row.MLA,
       updateStock: Number(row.updateStock) === 1,
       updatePrice: Number(row.updatePrice) === 1,
+      listing_type: row.listing_type,
+      units_per_listing:
+        row.units_per_listing === null ? null : Number(row.units_per_listing),
+      modalidad: row.modalidad,
+      price_factor: Number(row.price_factor ?? 1),
+      origen: row.origen,
       createdAt: this.toIsoStringOrNull(row.createdAt),
+      updatedAt: this.toIsoStringOrNull(row.updated_at),
     };
   }
 

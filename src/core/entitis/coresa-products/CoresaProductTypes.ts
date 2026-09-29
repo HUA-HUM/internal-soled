@@ -22,10 +22,17 @@ export type CoresaProductField = {
    * con NULL cuando el producto no lo trae.
    */
   preserveOnUpsert?: boolean;
+  /**
+   * Columna NOT NULL que tampoco hay que pisar: si el producto no la trae, se
+   * la excluye del INSERT, asi la fila nueva toma el DEFAULT y la existente
+   * conserva su valor. No sirve COALESCE porque un NOT NULL no admite el NULL
+   * que haria de centinela.
+   */
+  skipWhenAbsent?: boolean;
 };
 
 /**
- * Las 68 columnas de coresa_products, en el orden del CREATE TABLE.
+ * Las 69 columnas de coresa_products, en el orden del CREATE TABLE.
  *
  * Los campos de especificacion tecnica (IP, Lumenes, Potencia_Nominal,
  * Resolucion, Canales, Temp_Color...) son VARCHAR en la tabla: aunque en
@@ -101,6 +108,7 @@ export const CORESA_PRODUCT_FIELDS: CoresaProductField[] = [
   { field: 'URL_Imagen', type: 'string' },
   { field: 'Certificado', type: 'string' },
   { field: 'Precio_Convertido', type: 'int', preserveOnUpsert: true },
+  { field: 'base_units', type: 'int', skipWhenAbsent: true },
 ];
 
 /** El SKU es la PRIMARY KEY, no se sobreescribe en el upsert. */

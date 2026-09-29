@@ -20,6 +20,7 @@ import { InternalApiKeyGuard } from 'src/app/guards/internal-api-key.guard';
 import { CoresaProductsInMeliService } from 'src/app/services/coresa-products-in-mercadolibre/CoresaProductsInMeliService';
 import {
   CoresaProductInMeliBulkResult,
+  CoresaProductInMeliBySkuResult,
   CoresaProductInMeliDTO,
   CoresaProductInMeliListResult,
 } from 'src/core/entitis/coresa-products-in-mercadolibre/CoresaProductInMeliTypes';
@@ -40,9 +41,9 @@ export class CoresaProductsInMeliController {
 
   @Post()
   @ApiOperation({
-    summary: 'Registra una publicación',
+    summary: 'Registra una publicación con su variante',
     description:
-      'Upsert por el par (sku, mla): si ya existe, actualiza los flags en vez de fallar. updateStock y updatePrice arrancan en true.',
+      'Upsert por MLA. Un campo que no viene en el body NO se pisa: el panel manda solo sku, mla, updatePrice y updateStock, y eso no borra la variante ya cargada. units_per_listing debe ser entero >= 1, listing_type gold_special o gold_pro, price_factor entre 0.5 y 3, origen publicador, manual o heredado.',
   })
   @ApiBody({ type: UpsertCoresaProductInMeliDTO })
   upsert(
@@ -55,7 +56,7 @@ export class CoresaProductsInMeliController {
   @ApiOperation({
     summary: 'Registra varias publicaciones de una vez',
     description:
-      'Upsert por (sku, mla). Los items sin sku o sin mla se saltean y se informan en skipped. Si el mismo par viene repetido, gana el último.',
+      'Upsert por MLA, con las mismas reglas que el POST simple: lo que no viene no se pisa. Los items sin sku o sin mla se saltean y se informan en skipped. Si la misma MLA viene repetida, gana la última.',
   })
   @ApiBody({ type: BulkCoresaProductsInMeliDTO })
   bulkUpsert(
@@ -79,12 +80,12 @@ export class CoresaProductsInMeliController {
 
   @Get('by-sku/:sku')
   @ApiOperation({
-    summary: 'Publicaciones de un SKU',
+    summary: 'Variantes publicadas de un SKU',
     description:
-      'Devuelve un array: un SKU puede tener varias MLA. Array vacío si no hay ninguna.',
+      'Todas las variantes ya publicadas del SKU, con su tipo, unidades y modalidad. El publicador la usa antes de publicar para no crear dos veces la misma variante. 200 con items vacío si el SKU no tiene ninguna, no 404.',
   })
-  @ApiParam({ name: 'sku', example: '30005000106' })
-  getBySku(@Param('sku') sku: string): Promise<CoresaProductInMeliDTO[]> {
+  @ApiParam({ name: 'sku', example: 'JDTM1501' })
+  getBySku(@Param('sku') sku: string): Promise<CoresaProductInMeliBySkuResult> {
     return this.service.getBySku(sku);
   }
 

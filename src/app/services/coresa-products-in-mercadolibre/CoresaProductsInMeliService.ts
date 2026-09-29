@@ -14,6 +14,7 @@ import {
 import type { ISQLCoresaProductsInMeliRepository } from 'src/core/adapters/coresa-products-in-mercadolibre/ISQLCoresaProductsInMeliRepository';
 import {
   CoresaProductInMeliBulkResult,
+  CoresaProductInMeliBySkuResult,
   CoresaProductInMeliDTO,
   CoresaProductInMeliListResult,
   UpsertCoresaProductInMeliInput,
@@ -29,12 +30,7 @@ export class CoresaProductsInMeliService {
   ) {}
 
   upsert(body: UpsertCoresaProductInMeliDTO): Promise<CoresaProductInMeliDTO> {
-    return this.repository.upsert({
-      sku: body.sku.trim(),
-      mla: body.mla.trim(),
-      updateStock: body.updateStock,
-      updatePrice: body.updatePrice,
-    });
+    return this.repository.upsert(this.toUpsertInput(body));
   }
 
   /**
@@ -58,24 +54,19 @@ export class CoresaProductsInMeliService {
         return;
       }
 
-      const key = `${sku}|${mla}`;
-      const previous = seen.get(key);
-      const input: UpsertCoresaProductInMeliInput = {
-        sku,
-        mla,
-        updateStock: item.updateStock,
-        updatePrice: item.updatePrice,
-      };
+      // El upsert es por MLA, asi que la MLA identifica la fila.
+      const previous = seen.get(mla);
+      const input = this.toUpsertInput(item);
 
-      // El mismo par repetido dentro de un INSERT rompe el ON DUPLICATE KEY
-      // UPDATE, asi que gana el ultimo.
+      // La misma MLA repetida dentro de un INSERT rompe el ON DUPLICATE KEY
+      // UPDATE, asi que gana la ultima.
       if (previous !== undefined) {
         valid[previous] = input;
 
         return;
       }
 
-      seen.set(key, valid.length);
+      seen.set(mla, valid.length);
       valid.push(input);
     });
 
@@ -84,8 +75,14 @@ export class CoresaProductsInMeliService {
     return { received: body.items.length, upserted, skipped };
   }
 
-  getBySku(sku: string): Promise<CoresaProductInMeliDTO[]> {
-    return this.repository.getBySku(sku);
+  /**
+   * Todas las variantes ya publicadas del SKU. 200 con items vacio cuando no
+   * hay ninguna: que un SKU no tenga publicaciones no es un error.
+   */
+  async getBySku(sku: string): Promise<CoresaProductInMeliBySkuResult> {
+    const items = await this.repository.getBySku(sku);
+
+    return { sku, items };
   }
 
   async getBySkus(
@@ -154,6 +151,49 @@ export class CoresaProductsInMeliService {
       limit: query.limit ?? DEFAULT_LIMIT,
       offset: query.offset ?? 0,
     });
+  }
+
+  /**
+   * Copia solo las claves presentes: una clave ausente no llega al repositorio
+   * y por lo tanto no se escribe. Los nombres del body son los de las columnas.
+   */
+  private toUpsertInput(
+    body: UpsertCoresaProductInMeliDTO,
+  ): UpsertCoresaProductInMeliInput {
+    const input: UpsertCoresaProductInMeliInput = {
+      sku: body.sku.trim(),
+      mla: body.mla.trim(),
+    };
+
+    if (body.updateStock !== undefined) {
+      input.updateStock = body.updateStock;
+    }
+
+    if (body.updatePrice !== undefined) {
+      input.updatePrice = body.updatePrice;
+    }
+
+    if (body.listing_type !== undefined) {
+      input.listingType = body.listing_type;
+    }
+
+    if (body.units_per_listing !== undefined) {
+      input.unitsPerListing = body.units_per_listing;
+    }
+
+    if (body.modalidad !== undefined) {
+      input.modalidad = body.modalidad;
+    }
+
+    if (body.price_factor !== undefined) {
+      input.priceFactor = body.price_factor;
+    }
+
+    if (body.origen !== undefined) {
+      input.origen = body.origen;
+    }
+
+    return input;
   }
 
   private assertNotEmpty(body: UpdateCoresaProductInMeliDTO): void {
