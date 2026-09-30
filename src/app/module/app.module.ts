@@ -11,6 +11,7 @@ import { CoresaPublicationsModule } from './coresa-publications/CoresaPublicatio
 import { CoresaProductsModule } from './coresa-products/CoresaProducts.Module';
 import { CoresaProductsInMeliModule } from './coresa-products-in-mercadolibre/CoresaProductsInMeli.Module';
 import { CoresaSyncChangesModule } from './coresa-sync-changes/CoresaSyncChanges.Module';
+import { MeliFinancingCostsModule } from './meli-financing-costs/MeliFinancingCosts.Module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { CoresaSyncChangesModule } from './coresa-sync-changes/CoresaSyncChanges
     CoresaProductsModule,
     CoresaProductsInMeliModule,
     CoresaSyncChangesModule,
+    MeliFinancingCostsModule,
   ],
 })
 export class AppModule {}
