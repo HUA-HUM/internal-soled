@@ -18,6 +18,7 @@ const SELECT_COLUMNS = `
   modalidad,
   etiqueta,
   costo,
+  campaign,
   activa,
   DATE_FORMAT(vigente_desde, '%Y-%m-%d') AS vigente_desde,
   actualizado_por,
@@ -72,13 +73,14 @@ export class SQLMeliFinancingCostsRepository implements ISQLMeliFinancingCostsRe
     await this.entityManager.query(
       `
       INSERT INTO meli_financing_costs
-        (modalidad, etiqueta, costo, activa, vigente_desde, actualizado_por)
-      VALUES (?, ?, ?, 1, CURDATE(), ?)
+        (modalidad, etiqueta, costo, campaign, activa, vigente_desde, actualizado_por)
+      VALUES (?, ?, ?, ?, 1, CURDATE(), ?)
       `,
       [
         input.modalidad,
         input.etiqueta,
         input.costo,
+        input.campaign ?? null,
         input.actualizadoPor ?? null,
       ],
     );
@@ -117,6 +119,12 @@ export class SQLMeliFinancingCostsRepository implements ISQLMeliFinancingCostsRe
     if (input.costo !== undefined) {
       assignments.push('costo = ?');
       queryParams.push(input.costo);
+    }
+
+    // null explicito borra la campana; la clave ausente no la toca.
+    if (input.campaign !== undefined) {
+      assignments.push('campaign = ?');
+      queryParams.push(input.campaign);
     }
 
     if (input.activa !== undefined) {
@@ -181,6 +189,7 @@ export class SQLMeliFinancingCostsRepository implements ISQLMeliFinancingCostsRe
       modalidad: row.modalidad,
       etiqueta: row.etiqueta,
       costo: Number(row.costo),
+      campaign: row.campaign,
       activa: Number(row.activa) === 1,
       vigenteDesde: row.vigente_desde,
       actualizadoPor: row.actualizado_por,

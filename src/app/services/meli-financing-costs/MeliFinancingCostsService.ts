@@ -51,6 +51,7 @@ export class MeliFinancingCostsService {
       modalidad,
       etiqueta: body.etiqueta.trim(),
       costo: body.costo,
+      campaign: body.campaign ?? null,
       actualizadoPor: body.actualizadoPor?.trim() || null,
     });
   }
@@ -105,6 +106,12 @@ export class MeliFinancingCostsService {
 
     if (body.costo !== undefined) {
       input.costo = body.costo;
+    }
+
+    // Se compara contra undefined y no por truthiness: campaign en null es una
+    // orden de borrar, no una ausencia.
+    if (body.campaign !== undefined) {
+      input.campaign = body.campaign;
     }
 
     if (body.activa !== undefined) {

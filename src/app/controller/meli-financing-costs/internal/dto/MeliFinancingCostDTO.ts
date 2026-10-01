@@ -7,11 +7,13 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
 import {
+  CAMPAIGN_PATTERN,
   MAX_FINANCING_COST,
   MIN_FINANCING_COST,
 } from 'src/core/entitis/meli-financing-costs/MeliFinancingCostTypes';
@@ -43,6 +45,17 @@ export class CreateMeliFinancingCostDTO {
   @Max(MAX_FINANCING_COST)
   costo: number;
 
+  @ApiPropertyOptional({
+    example: '18x_campaign',
+    description:
+      'Nombre de campaña de ML para el término de venta INSTALLMENTS_CAMPAIGN. Sin espacios, hasta 40 caracteres. Sin este campo la modalidad queda sin campaña.',
+  })
+  @IsOptional()
+  @Matches(CAMPAIGN_PATTERN, {
+    message: 'campaign must not contain spaces and be at most 40 characters',
+  })
+  campaign?: string;
+
   @ApiPropertyOptional({ example: 'arturo@solediluminacion.com' })
   @IsOptional()
   @IsString()
@@ -66,6 +79,18 @@ export class UpdateMeliFinancingCostDTO {
   @Min(MIN_FINANCING_COST)
   @Max(MAX_FINANCING_COST)
   costo?: number;
+
+  @ApiPropertyOptional({
+    example: '12x_campaign',
+    nullable: true,
+    description:
+      'Nombre de campaña de ML. Sin espacios, hasta 40 caracteres. Es el único campo donde null explícito significa borrar la campaña; omitirlo significa no tocarla.',
+  })
+  @IsOptional()
+  @Matches(CAMPAIGN_PATTERN, {
+    message: 'campaign must not contain spaces and be at most 40 characters',
+  })
+  campaign?: string | null;
 
   @ApiPropertyOptional({
     example: false,
