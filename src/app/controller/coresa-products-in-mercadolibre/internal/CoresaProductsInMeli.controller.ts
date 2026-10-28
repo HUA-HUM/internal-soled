@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -13,6 +14,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiQuery,
+  ApiResponse,
   ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
@@ -116,6 +118,24 @@ export class CoresaProductsInMeliController {
     @Body() body: UpdateCoresaProductInMeliDTO,
   ): Promise<CoresaProductInMeliDTO> {
     return this.service.updateByMla(mla, body);
+  }
+
+  @Delete('by-mla/:mla')
+  @ApiOperation({
+    summary: 'Desvincula una publicación',
+    description:
+      'Borra la fila del vínculo. Se usa cuando una publicación se da de baja en ML y hay que rehacerla: mientras la fila siga, el actualizador le manda precio y stock a algo que ya no existe y el publicador no deja republicar esa variante. Solo toca esta tabla: el producto sigue en coresa_products y la publicación queda en coresa_meli_publications como historia. 404 si la MLA no estaba.',
+  })
+  @ApiParam({ name: 'mla', example: 'MLA4021533800' })
+  @ApiResponse({
+    status: 200,
+    schema: { example: { mla: 'MLA4021533800', deleted: true } },
+  })
+  @ApiResponse({ status: 404, description: 'La MLA no está registrada.' })
+  deleteByMla(
+    @Param('mla') mla: string,
+  ): Promise<{ mla: string; deleted: true }> {
+    return this.service.deleteByMla(mla);
   }
 
   @Get()

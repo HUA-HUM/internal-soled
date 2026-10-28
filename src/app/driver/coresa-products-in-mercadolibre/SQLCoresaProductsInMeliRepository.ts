@@ -230,6 +230,24 @@ export class SQLCoresaProductsInMeliRepository implements ISQLCoresaProductsInMe
     return this.getByMla(mla);
   }
 
+  /**
+   * Solo se borra la fila del vinculo. coresa_products,
+   * coresa_meli_publications y mercadolibre_products no se tocan: el producto
+   * sigue en el catalogo, la publicacion queda en la historia como discarded y
+   * el espejo de ML se actualiza cuando ML avisa que cerro el item.
+   */
+  async deleteByMla(mla: string): Promise<boolean> {
+    const result: unknown = await this.entityManager.query(
+      `
+      DELETE FROM coresa_products_in_mercadolibre
+      WHERE \`MLA\` = ?
+      `,
+      [mla],
+    );
+
+    return this.getAffectedRows(result) > 0;
+  }
+
   async list(params: {
     filters: CoresaProductInMeliFilters;
     limit: number;
@@ -264,6 +282,19 @@ export class SQLCoresaProductsInMeliRepository implements ISQLCoresaProductsInMe
         total: Number(countRows[0]?.total ?? 0),
       },
     };
+  }
+
+  private getAffectedRows(result: unknown): number {
+    if (
+      result &&
+      typeof result === 'object' &&
+      'affectedRows' in result &&
+      typeof (result as { affectedRows: unknown }).affectedRows === 'number'
+    ) {
+      return (result as { affectedRows: number }).affectedRows;
+    }
+
+    return 0;
   }
 
   private toColumnValue(

@@ -24,6 +24,8 @@ export interface ISQLCoresaProductsInMeliRepository {
     mla: string,
     input: UpdateCoresaProductInMeliInput,
   ): Promise<CoresaProductInMeliDTO | null>;
+  /** Borra la fila de esa MLA. Devuelve false si no existia. */
+  deleteByMla(mla: string): Promise<boolean>;
   list(params: {
     filters: CoresaProductInMeliFilters;
     limit: number;

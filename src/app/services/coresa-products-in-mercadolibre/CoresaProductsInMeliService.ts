@@ -132,6 +132,21 @@ export class CoresaProductsInMeliService {
     return item;
   }
 
+  /**
+   * 404 cuando la fila no estaba, a proposito: quien llama tiene que poder
+   * distinguir "la borre" de "no estaba". coresa-api trata el 404 como exito
+   * porque el estado deseado es el mismo, pero esa decision es suya.
+   */
+  async deleteByMla(mla: string): Promise<{ mla: string; deleted: true }> {
+    const deleted = await this.repository.deleteByMla(mla);
+
+    if (!deleted) {
+      throw new NotFoundException(`No publication found for mla ${mla}`);
+    }
+
+    return { mla, deleted: true };
+  }
+
   list(
     query: ListCoresaProductsInMeliQueryDTO,
   ): Promise<CoresaProductInMeliListResult> {
